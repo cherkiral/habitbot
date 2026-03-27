@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import auth, users
+from app.routers import auth, users, weight, activity
 
 logger = structlog.get_logger()
 
@@ -25,6 +25,8 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
+app.include_router(weight.router, prefix="/api")
+app.include_router(activity.router, prefix="/api")
 
 
 @app.on_event("startup")
