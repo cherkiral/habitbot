@@ -1,4 +1,4 @@
-﻿"""Initial tables: users and user_profiles
+"""Initial tables: users and user_profiles
 
 Revision ID: 0001
 Revises: 

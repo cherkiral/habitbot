@@ -1,4 +1,4 @@
-﻿import uuid
+import uuid
 from datetime import timedelta
 
 from fastapi import HTTPException, status
