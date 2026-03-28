@@ -34,11 +34,6 @@ app.include_router(streak.router, prefix="/api")
 @app.on_event("startup")
 async def startup():
     logger.info("Starting HabitBot API", environment=settings.ENVIRONMENT)
-    from app.core.database import AsyncSessionLocal
-    from app.services.streak import seed_achievements
-    async with AsyncSessionLocal() as db:
-        await seed_achievements(db)
-    logger.info("Achievements seeded")
 
 
 @app.on_event("shutdown")
