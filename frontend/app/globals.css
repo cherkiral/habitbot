@@ -1,8 +1,33 @@
+@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme {
+  --font-family-sans: 'DM Sans', sans-serif;
+  --font-family-mono: 'DM Mono', monospace;
+
+  --color-bg: #faf8f0;
+  --color-card: #ffffff;
+  --color-sidebar: #f3f0e4;
+  --color-hover: #ede9d8;
+  --color-active: #e5e0cc;
+  --color-border: #ddd8c0;
+  --color-border-light: #e8e4d0;
+  --color-primary: #2a3010;
+  --color-secondary: #5a6e2a;
+  --color-muted: #8a9060;
+  --color-hint: #b0b890;
+  --color-accent: #6a8a2a;
+  --color-accent-dark: #3a4a1a;
+  --color-accent-light: #c8e090;
+  --color-accent-bg: #eef4d8;
+  --color-amber: #d97706;
+  --color-amber-light: #fef3c7;
+
+  --border-radius-sm: 6px;
+  --border-radius-DEFAULT: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 16px;
+}
 
 :root {
   --bg: #faf8f0;
@@ -10,34 +35,12 @@
   --bg-sidebar: #f3f0e4;
   --bg-hover: #ede9d8;
   --bg-active: #e5e0cc;
-
   --border: #ddd8c0;
   --border-light: #e8e4d0;
-
-  --text-primary: #2a3010;
-  --text-secondary: #5a6e2a;
-  --text-muted: #8a9060;
-  --text-hint: #b0b890;
-
   --accent: #6a8a2a;
   --accent-dark: #3a4a1a;
   --accent-light: #c8e090;
   --accent-bg: #eef4d8;
-
-  --amber: #d97706;
-  --amber-light: #fef3c7;
-
-  --success: #16a34a;
-  --danger: #dc2626;
-  --info: #2563eb;
-
-  --radius-sm: 6px;
-  --radius: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-
-  --shadow-sm: 0 1px 3px rgba(42,48,16,.06);
-  --shadow: 0 2px 8px rgba(42,48,16,.08);
 }
 
 * {
@@ -50,7 +53,7 @@ html, body {
   height: 100%;
   font-family: 'DM Sans', sans-serif;
   background: var(--bg);
-  color: var(--text-primary);
+  color: #2a3010;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -60,4 +63,4 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+::-webkit-scrollbar-thumb { background: #ddd8c0; border-radius: 99px; }
