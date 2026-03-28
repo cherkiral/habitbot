@@ -5,220 +5,225 @@ import { api } from '@/lib/api'
 import { Header } from '@/components/layout/header'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
-const S = {
-  page: { display: 'flex', flexDirection: 'column' as const, height: '100%', overflow: 'hidden' },
-  content: { flex: 1, overflowY: 'auto' as const, padding: 24, display: 'flex', flexDirection: 'column' as const, gap: 20 },
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 },
-  card: { background: '#fff', border: '1px solid #ddd8c0', borderRadius: 10, padding: 20, boxShadow: '0 1px 3px rgba(42,48,16,.06)' },
-  label: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#8a9060', marginBottom: 8, display: 'block' },
-  input: { width: '100%', padding: '10px 12px', fontSize: 15, border: '1px solid #ddd8c0', borderRadius: 8, color: '#2a3010', outline: 'none', fontFamily: "'DM Sans', sans-serif", background: '#faf8f0' },
-  btn: { width: '100%', padding: '10px', background: '#6a8a2a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 12, fontFamily: "'DM Sans', sans-serif" },
-  statRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 },
-  statCard: { background: '#fff', border: '1px solid #ddd8c0', borderRadius: 10, padding: 16 },
-  statLabel: { fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#8a9060', marginBottom: 6 },
-  statVal: { fontSize: 22, fontWeight: 600, color: '#2a3010', letterSpacing: '-0.5px', lineHeight: 1 },
-  statUnit: { fontSize: 12, fontWeight: 400, color: '#b0b890', marginLeft: 3 },
-  statDelta: (pos: boolean) => ({ fontSize: 11, marginTop: 5, color: pos ? '#16a34a' : '#dc2626' }),
-  periodBtn: (active: boolean) => ({
-    padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: active ? 600 : 400,
-    border: active ? '1px solid #6a8a2a' : '1px solid #ddd8c0',
-    background: active ? '#eef4d8' : 'transparent',
-    color: active ? '#3a4a1a' : '#8a9060',
-    cursor: 'pointer',
-  }),
-  logRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0ede4' },
-  delBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#d97070', fontSize: 12, padding: '2px 8px' },
+const c = {
+  bg:'#faf8f0', card:'#ffffff', dark:'#3a4a1a', accent:'#6a8a2a',
+  border:'#ddd8c0', muted:'#8a9060', hint:'#b0b890', primary:'#2a3010',
+  amber:'#d97706', green:'#16a34a', red:'#dc2626',
 }
+const card = (e?: React.CSSProperties): React.CSSProperties => ({
+  background: c.card, border: `1px solid ${c.border}`, borderRadius: 12, padding: 20, ...e,
+})
 
-const periods = [
+const PERIODS = [
   { label: '7 дней', days: 7 },
   { label: '30 дней', days: 30 },
-  { label: '3 месяца', days: 90 },
+  { label: '3 мес', days: 90 },
   { label: 'Всё', days: 365 },
 ]
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const WTip = ({ active, payload, label: l }: any) => {
   if (!active || !payload?.length) return null
   return (
-    <div style={{ background: '#fff', border: '1px solid #ddd8c0', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
-      <p style={{ color: '#8a9060', marginBottom: 2 }}>{label}</p>
-      <p style={{ color: '#2a3010', fontWeight: 600 }}>{payload[0].value} кг</p>
+    <div style={{ background:'#fff', border:`1px solid ${c.border}`, borderRadius:8, padding:'8px 12px', fontSize:11 }}>
+      <p style={{ color:c.hint, marginBottom:2 }}>{l}</p>
+      <p style={{ color:c.primary, fontWeight:600 }}>{payload[0].value} кг</p>
     </div>
   )
 }
 
 export default function WeightPage() {
   const qc = useQueryClient()
-  const [weight, setWeight] = useState('')
-  const [note, setNote] = useState('')
   const [period, setPeriod] = useState(30)
   const [showForm, setShowForm] = useState(false)
+  const [weight, setWeight] = useState('')
+  const [note, setNote] = useState('')
 
-  const { data: stats } = useQuery({
-    queryKey: ['weight-stats'],
-    queryFn: () => api.get('/weight/stats').then(r => r.data),
-  })
-
+  const { data: stats } = useQuery({ queryKey: ['weight-stats'], queryFn: () => api.get('/weight/stats').then(r => r.data) })
+  const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: () => api.get('/users/me/profile').then(r => r.data) })
   const { data: logs } = useQuery({
     queryKey: ['weight-logs', period],
     queryFn: () => {
-      const from = new Date()
-      from.setDate(from.getDate() - period)
+      const from = new Date(); from.setDate(from.getDate() - period)
       return api.get('/weight/logs', { params: { from_date: from.toISOString(), limit: 100 } }).then(r => r.data)
     },
   })
 
-  const { data: profile } = useQuery({
-    queryKey: ['profile'],
-    queryFn: () => api.get('/users/me/profile').then(r => r.data),
-  })
-
-  const addLog = useMutation({
+  const add = useMutation({
     mutationFn: () => api.post('/weight/logs', { weight_kg: parseFloat(weight), notes: note || undefined }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['weight-logs'] })
-      qc.invalidateQueries({ queryKey: ['weight-stats'] })
-      qc.invalidateQueries({ queryKey: ['profile'] })
-      setWeight('')
-      setNote('')
-      setShowForm(false)
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['weight-logs'] }); qc.invalidateQueries({ queryKey: ['weight-stats'] }); setWeight(''); setNote(''); setShowForm(false) },
   })
-
-  const deleteLog = useMutation({
+  const del = useMutation({
     mutationFn: (id: string) => api.delete(`/weight/logs/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['weight-logs'] })
-      qc.invalidateQueries({ queryKey: ['weight-stats'] })
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['weight-logs'] }); qc.invalidateQueries({ queryKey: ['weight-stats'] }) },
   })
 
   const chartData = [...(logs || [])].reverse().map((l: any) => ({
-    date: new Date(l.logged_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }),
+    date: new Date(l.logged_at).toLocaleDateString('ru-RU', { day:'numeric', month:'short' }),
     weight: l.weight_kg,
   }))
-
-  const minW = chartData.length ? Math.min(...chartData.map(d => d.weight)) - 1 : 0
-  const maxW = chartData.length ? Math.max(...chartData.map(d => d.weight)) + 1 : 100
+  const toGoal = stats?.current_weight_kg && stats?.target_weight_kg
+    ? Math.max(0, stats.current_weight_kg - stats.target_weight_kg).toFixed(1) : null
 
   return (
-    <div style={S.page}>
-      <Header
-        title="Вес"
-        action={{ label: 'Добавить', onClick: () => setShowForm(v => !v) }}
-      />
-      <div style={S.content}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+      <Header title="Вес" action={{ label:'Взвеситься', onClick: () => setShowForm(v => !v) }} />
+      <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', background: c.bg }}>
+        <div style={{ maxWidth:1200, margin:'0 auto', display:'flex', flexDirection:'column', gap:16 }}>
 
-        {/* Form */}
-        {showForm && (
-          <div style={S.card}>
-            <p style={{ fontSize: 14, fontWeight: 600, color: '#2a3010', marginBottom: 14 }}>Новое взвешивание</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <span style={S.label}>Вес (кг)</span>
-                <input style={S.input} type="number" step="0.1" placeholder="90.0"
-                  value={weight} onChange={e => setWeight(e.target.value)} />
+          {/* Form */}
+          {showForm && (
+            <div style={card()}>
+              <p style={{ fontSize:14, fontWeight:600, color:c.primary, marginBottom:14 }}>Новое взвешивание</p>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div>
+                  <p style={{ fontSize:11, color:c.muted, marginBottom:5 }}>Вес (кг)</p>
+                  <input type="number" step="0.1" placeholder="89.5" value={weight}
+                    onChange={e => setWeight(e.target.value)}
+                    style={{ width:'100%', padding:'10px 12px', border:`1px solid ${c.border}`, borderRadius:8, fontSize:15, fontWeight:600, color:c.primary, outline:'none', fontFamily:"'DM Sans',sans-serif", background:c.bg }} />
+                </div>
+                <div>
+                  <p style={{ fontSize:11, color:c.muted, marginBottom:5 }}>Заметка</p>
+                  <input type="text" placeholder="Утреннее взвешивание" value={note}
+                    onChange={e => setNote(e.target.value)}
+                    style={{ width:'100%', padding:'10px 12px', border:`1px solid ${c.border}`, borderRadius:8, fontSize:13, color:c.primary, outline:'none', fontFamily:"'DM Sans',sans-serif", background:c.bg }} />
+                </div>
               </div>
-              <div>
-                <span style={S.label}>Заметка (необязательно)</span>
-                <input style={S.input} type="text" placeholder="Утреннее взвешивание"
-                  value={note} onChange={e => setNote(e.target.value)} />
-              </div>
+              <button onClick={() => weight && add.mutate()} disabled={!weight || add.isPending}
+                style={{ marginTop:14, padding:'10px 24px', background:c.accent, color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                {add.isPending ? 'Сохраняем...' : 'Сохранить'}
+              </button>
             </div>
-            <button style={S.btn} onClick={() => weight && addLog.mutate()} disabled={!weight || addLog.isPending}>
-              {addLog.isPending ? 'Сохраняем...' : 'Сохранить'}
-            </button>
-          </div>
-        )}
+          )}
 
-        {/* Stats */}
-        <div style={S.statRow}>
-          <div style={S.statCard}>
-            <div style={S.statLabel}>Текущий вес</div>
-            <div style={S.statVal}>{stats?.current_weight_kg?.toFixed(1) ?? '—'}<span style={S.statUnit}>кг</span></div>
-          </div>
-          <div style={S.statCard}>
-            <div style={S.statLabel}>Цель</div>
-            <div style={S.statVal}>{stats?.target_weight_kg?.toFixed(1) ?? '—'}<span style={S.statUnit}>кг</span></div>
-          </div>
-          <div style={S.statCard}>
-            <div style={S.statLabel}>За неделю</div>
-            <div style={S.statVal}>
-              {stats?.delta_week_kg != null ? (
-                <span style={{ color: stats.delta_week_kg < 0 ? '#16a34a' : '#dc2626' }}>
-                  {stats.delta_week_kg > 0 ? '+' : ''}{stats.delta_week_kg}<span style={S.statUnit}>кг</span>
-                </span>
-              ) : '—'}
-            </div>
-          </div>
-          <div style={S.statCard}>
-            <div style={S.statLabel}>До цели</div>
-            <div style={S.statVal}>
-              {stats?.current_weight_kg && stats?.target_weight_kg
-                ? <span style={{ color: '#6a8a2a' }}>{Math.max(0, stats.current_weight_kg - stats.target_weight_kg).toFixed(1)}<span style={S.statUnit}>кг</span></span>
-                : '—'}
-            </div>
-            {stats?.predicted_goal_date && (
-              <div style={{ fontSize: 10, color: '#b0b890', marginTop: 4 }}>
-                ~{new Date(stats.predicted_goal_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-              </div>
-            )}
-          </div>
-        </div>
+          {/* Top bento */}
+          <div style={{ display:'grid', gridTemplateColumns:'220px 1fr 1fr 1fr', gap:12 }}>
 
-        {/* Chart */}
-        <div style={S.card}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#2a3010' }}>Динамика веса</span>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {periods.map(p => (
-                <button key={p.days} style={S.periodBtn(period === p.days)} onClick={() => setPeriod(p.days)}>
-                  {p.label}
-                </button>
+            {/* Главный блок — текущий вес */}
+            <div style={{ ...card({ background:c.dark, border:`1px solid ${c.dark}`, gridRow:'span 2', display:'flex', flexDirection:'column' }) }}>
+              <p style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', color:'rgba(255,255,255,0.4)', marginBottom:6 }}>Текущий вес</p>
+              <div style={{ fontSize:48, fontWeight:700, color:'#fff', letterSpacing:'-3px', lineHeight:1 }}>
+                {stats?.current_weight_kg?.toFixed(1) ?? '—'}
+              </div>
+              <p style={{ fontSize:13, color:'rgba(255,255,255,0.4)', marginTop:2 }}>кг</p>
+              {stats?.delta_week_kg != null && (
+                <div style={{ marginTop:12, padding:'8px 12px', background:'rgba(255,255,255,0.07)', borderRadius:8 }}>
+                  <p style={{ fontSize:10, color:'rgba(255,255,255,0.35)', marginBottom:2 }}>ЗА НЕДЕЛЮ</p>
+                  <p style={{ fontSize:18, fontWeight:600, color: stats.delta_week_kg < 0 ? '#86efac' : '#fca5a5' }}>
+                    {stats.delta_week_kg > 0 ? '+' : ''}{stats.delta_week_kg} кг
+                  </p>
+                </div>
+              )}
+              <div style={{ flex:1 }} />
+              {toGoal && (
+                <div style={{ padding:'10px 12px', background:'rgba(255,255,255,0.07)', borderRadius:8 }}>
+                  <p style={{ fontSize:10, color:'rgba(255,255,255,0.35)', marginBottom:3 }}>ДО ЦЕЛИ</p>
+                  <p style={{ fontSize:20, fontWeight:600, color:'#fff' }}>{toGoal} кг</p>
+                  {stats?.predicted_goal_date && (
+                    <p style={{ fontSize:9, color:'rgba(255,255,255,0.3)', marginTop:3 }}>
+                      ~{new Date(stats.predicted_goal_date).toLocaleDateString('ru-RU', { day:'numeric', month:'long' })}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Цель */}
+            <div style={card()}>
+              <p style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', color:c.hint, marginBottom:8 }}>Цель</p>
+              <div style={{ fontSize:28, fontWeight:600, color:c.accent, letterSpacing:'-1px', lineHeight:1 }}>
+                {stats?.target_weight_kg?.toFixed(1) ?? '—'}<span style={{ fontSize:13, fontWeight:400, color:c.hint, marginLeft:3 }}>кг</span>
+              </div>
+              {stats?.current_weight_kg && stats?.target_weight_kg && (
+                <>
+                  <div style={{ height:5, background:'#e8e4d0', borderRadius:99, overflow:'hidden', marginTop:12 }}>
+                    <div style={{ width:`${Math.min(Math.max((1 - (stats.current_weight_kg - stats.target_weight_kg) / ((stats.start_weight_kg || stats.current_weight_kg + 10) - stats.target_weight_kg)) * 100, 0), 100)}%`, height:'100%', background:c.accent, borderRadius:99 }} />
+                  </div>
+                  <p style={{ fontSize:10, color:c.hint, marginTop:5 }}>Осталось {toGoal} кг</p>
+                </>
+              )}
+            </div>
+
+            {/* За месяц */}
+            <div style={card()}>
+              <p style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', color:c.hint, marginBottom:8 }}>За месяц</p>
+              <div style={{ fontSize:28, fontWeight:600, letterSpacing:'-1px', lineHeight:1, color: (stats?.delta_month_kg ?? 0) < 0 ? c.green : c.red }}>
+                {stats?.delta_month_kg != null ? `${stats.delta_month_kg > 0 ? '+' : ''}${stats.delta_month_kg}` : '—'}
+                <span style={{ fontSize:13, fontWeight:400, color:c.hint, marginLeft:3 }}>кг</span>
+              </div>
+              <p style={{ fontSize:10, color:c.hint, marginTop:8 }}>
+                {(stats?.delta_month_kg ?? 0) < 0 ? 'Отличный результат!' : 'Продолжай работать'}
+              </p>
+            </div>
+
+            {/* Всего потеряно */}
+            <div style={card()}>
+              <p style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', color:c.hint, marginBottom:8 }}>Всего потеряно</p>
+              <div style={{ fontSize:28, fontWeight:600, color:c.accent, letterSpacing:'-1px', lineHeight:1 }}>
+                {stats?.delta_total_kg != null ? Math.abs(stats.delta_total_kg).toFixed(1) : '—'}
+                <span style={{ fontSize:13, fontWeight:400, color:c.hint, marginLeft:3 }}>кг</span>
+              </div>
+              <p style={{ fontSize:10, color:c.hint, marginTop:8 }}>С начала трекинга</p>
+            </div>
+
+            {/* График */}
+            <div style={{ ...card({ gridColumn:'span 3' }) }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+                <span style={{ fontSize:13, fontWeight:500, color:c.primary }}>Динамика</span>
+                <div style={{ display:'flex', gap:5 }}>
+                  {PERIODS.map(p => (
+                    <button key={p.days} onClick={() => setPeriod(p.days)} style={{
+                      padding:'4px 10px', borderRadius:6, fontSize:11, fontWeight: period === p.days ? 600 : 400,
+                      border: `1px solid ${period === p.days ? c.accent : c.border}`,
+                      background: period === p.days ? '#eef4d8' : 'transparent',
+                      color: period === p.days ? c.dark : c.hint, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                    }}>{p.label}</button>
+                  ))}
+                </div>
+              </div>
+              {chartData.length > 1 ? (
+                <ResponsiveContainer width="100%" height={160}>
+                  <LineChart data={chartData} margin={{ top:5, right:5, left:-20, bottom:0 }}>
+                    <XAxis dataKey="date" tick={{ fontSize:10, fill:c.hint }} tickLine={false} axisLine={false} />
+                    <YAxis domain={['auto','auto']} tick={{ fontSize:10, fill:c.hint }} tickLine={false} axisLine={false} />
+                    <Tooltip content={<WTip />} />
+                    {profile?.target_weight_kg && <ReferenceLine y={profile.target_weight_kg} stroke={c.accent} strokeDasharray="4 4" />}
+                    <Line type="monotone" dataKey="weight" stroke={c.accent} strokeWidth={2.5} dot={false} activeDot={{ r:4, fill:c.accent }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div style={{ height:160, display:'flex', alignItems:'center', justifyContent:'center', color:c.hint, fontSize:13 }}>
+                  Добавь первое взвешивание
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* История */}
+          <div style={card()}>
+            <p style={{ fontSize:13, fontWeight:600, color:c.primary, marginBottom:14 }}>История взвешиваний</p>
+            {!logs?.length && <p style={{ fontSize:13, color:c.hint, textAlign:'center', padding:'20px 0' }}>Нет записей за выбранный период</p>}
+            <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+              {logs?.map((l: any, i: number) => (
+                <div key={l.id} style={{ display:'flex', alignItems:'center', gap:16, padding:'10px 0', borderBottom: i < logs.length - 1 ? `1px solid ${c.border}` : 'none' }}>
+                  <div style={{ width:48, height:48, borderRadius:10, background:'#eef4d8', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style={{ fontSize:16, fontWeight:700, color:c.accent }}>{l.weight_kg}</span>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <p style={{ fontSize:14, fontWeight:600, color:c.primary }}>{l.weight_kg} кг</p>
+                    {l.notes && <p style={{ fontSize:11, color:c.muted }}>{l.notes}</p>}
+                  </div>
+                  <p style={{ fontSize:11, color:c.hint }}>
+                    {new Date(l.logged_at).toLocaleDateString('ru-RU', { day:'numeric', month:'long', hour:'2-digit', minute:'2-digit' })}
+                  </p>
+                  <button onClick={() => del.mutate(l.id)}
+                    style={{ background:'none', border:'none', cursor:'pointer', color:'#e88', fontSize:13, padding:'4px 8px' }}>✕</button>
+                </div>
               ))}
             </div>
           </div>
-          {chartData.length > 1 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#b0b890' }} tickLine={false} axisLine={false} />
-                <YAxis domain={[minW, maxW]} tick={{ fontSize: 11, fill: '#b0b890' }} tickLine={false} axisLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                {profile?.target_weight_kg && (
-                  <ReferenceLine y={profile.target_weight_kg} stroke="#6a8a2a" strokeDasharray="4 4" label={{ value: 'Цель', fill: '#6a8a2a', fontSize: 11 }} />
-                )}
-                <Line type="monotone" dataKey="weight" stroke="#6a8a2a" strokeWidth={2} dot={{ fill: '#6a8a2a', r: 3 }} activeDot={{ r: 5 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b0b890', fontSize: 13 }}>
-              Недостаточно данных для графика
-            </div>
-          )}
-        </div>
 
-        {/* Log */}
-        <div style={S.card}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#2a3010', marginBottom: 12 }}>История взвешиваний</p>
-          {logs?.length === 0 && (
-            <p style={{ fontSize: 13, color: '#b0b890', textAlign: 'center', padding: '20px 0' }}>Нет записей</p>
-          )}
-          {logs?.map((l: any) => (
-            <div key={l.id} style={S.logRow}>
-              <div>
-                <span style={{ fontSize: 15, fontWeight: 600, color: '#2a3010' }}>{l.weight_kg} кг</span>
-                {l.notes && <span style={{ fontSize: 12, color: '#8a9060', marginLeft: 10 }}>{l.notes}</span>}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 12, color: '#b0b890' }}>
-                  {new Date(l.logged_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                </span>
-                <button style={S.delBtn} onClick={() => deleteLog.mutate(l.id)}>✕</button>
-              </div>
-            </div>
-          ))}
         </div>
-
       </div>
     </div>
   )
