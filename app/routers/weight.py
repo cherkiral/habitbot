@@ -29,7 +29,7 @@ async def add_weight_log(
     current_user: User = Depends(get_current_user_dep),
     db: AsyncSession = Depends(get_db),
 ):
-    return await create_weight_log(db, current_user.id, body)
+    return await create_weight_log(db, current_user, body)  # fix: User object, not .id
 
 
 @router.get("/logs", response_model=list[WeightLogResponse])
@@ -289,7 +289,7 @@ async def add_measurement(
     current_user: User = Depends(get_current_user_dep),
     db: AsyncSession = Depends(get_db),
 ):
-    return await create_body_measurement(db, current_user.id, body)
+    return await create_body_measurement(db, current_user, body)  # fix: User object, not .id
 
 
 @router.get("/body/measurements", response_model=list[BodyMeasurementResponse])
@@ -325,7 +325,7 @@ async def body_stats(
 
     ratios = wa.calc_body_ratios(
         waist_cm=latest.waist_cm,
-        hip_cm=latest.hips_cm,       # fix: hips_cm — имя поля в модели
+        hip_cm=latest.hips_cm,
         height_cm=profile.height_cm if profile else None,
         gender=profile.gender if profile else None,
     )
@@ -334,9 +334,9 @@ async def body_stats(
         "latest_measurement": {
             "measured_at": latest.measured_at.isoformat(),
             "waist_cm":    latest.waist_cm,
-            "hips_cm":     latest.hips_cm,   # fix: hips_cm
+            "hips_cm":     latest.hips_cm,
             "chest_cm":    latest.chest_cm,
-            "arms_cm":     latest.arms_cm,   # fix: было несуществующее neck_cm
+            "arms_cm":     latest.arms_cm,
             "legs_cm":     latest.legs_cm,
         },
         "ratios": ratios,
