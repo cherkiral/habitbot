@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Header } from '@/components/layout/header'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell , Cell} from 'recharts'
 
 const c = { bg:'#faf8f0', card:'#ffffff', dark:'#3a4a1a', accent:'#6a8a2a', border:'#ddd8c0', muted:'#8a9060', hint:'#b0b890', primary:'#2a3010', amber:'#d97706' }
 const card = (e?: React.CSSProperties): React.CSSProperties => ({ background:c.card, border:`1px solid ${c.border}`, borderRadius:12, padding:20, ...e })
@@ -168,8 +168,11 @@ export default function ActivityPage() {
                   <XAxis dataKey="day" tick={{ fontSize:10, fill:c.hint }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize:10, fill:c.hint }} tickLine={false} axisLine={false} />
                   <Tooltip formatter={(v: any) => [`${v.toLocaleString('ru')} С€Р°РіРѕРІ`]} contentStyle={{ fontSize:11, borderRadius:8, border:`1px solid ${c.border}` }} />
-                  <Bar dataKey="value" fill="#c8e090" radius={[4,4,0,0]}
-                    cells={barData.map((d, i) => <cell key={i} fill={i === todayIdx ? c.accent : i < todayIdx ? '#c8e090' : '#f0ede4'} />)}
+                  <Bar dataKey="value" radius={[4,4,0,0]}>
+                    {barData.map((d: any, i: number) => (
+                      <Cell key={i} fill={i === todayIdx ? c.accent : i < todayIdx ? '#c8e090' : '#f0ede4'} />
+                    ))}
+                  </Bar>)}
                   />
                 </BarChart>
               </ResponsiveContainer>
