@@ -36,7 +36,7 @@ def upgrade() -> None:
         sa.Column("code", sa.String(50), unique=True, nullable=False),
         sa.Column("name", sa.String(100), nullable=False),
         sa.Column("description", sa.String(255), nullable=False),
-        sa.Column("icon", sa.String(10), nullable=False),
+        sa.Column("icon", sa.String(50), nullable=False),
         sa.Column("condition_type", sa.String(50), nullable=False),
         sa.Column("condition_value", sa.Integer(), nullable=False),
     )

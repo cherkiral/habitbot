@@ -27,7 +27,7 @@ class Achievement(UUIDMixin, Base):
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(String(255), nullable=False)
-    icon: Mapped[str] = mapped_column(String(10), nullable=False)
+    icon: Mapped[str] = mapped_column(String(50), nullable=False)
     condition_type: Mapped[str] = mapped_column(String(50), nullable=False)
     condition_value: Mapped[int] = mapped_column(Integer, nullable=False)
 
