@@ -18,10 +18,22 @@ const card = (e?: React.CSSProperties): React.CSSProperties => ({
   background: c.card, border: `1px solid ${c.border}`, borderRadius: 12, padding: 20, ...e,
 })
 
-const PERIODS = [{ label: '7 дней', days: 7 }, { label: '30 дней', days: 30 }, { label: '3 мес', days: 90 }, { label: 'Всё', days: 365 }]
+const inp: React.CSSProperties = {
+  width: '100%', padding: '9px 12px', border: `1px solid ${c.border}`,
+  borderRadius: 8, fontSize: 13, color: c.primary, outline: 'none',
+  fontFamily: "'DM Sans',sans-serif", background: c.bg,
+}
+
+const PERIODS = [
+  { label: '7 дней', days: 7 },
+  { label: '30 дней', days: 30 },
+  { label: '3 мес', days: 90 },
+  { label: 'Всё', days: 365 },
+]
 
 const BMI_COLOR: Record<string, string> = {
-  blue: '#3b82f6', green: '#16a34a', yellow: '#d97706', orange: '#ea580c', red: '#dc2626', darkred: '#9f1239',
+  blue: '#3b82f6', green: '#16a34a', yellow: '#d97706',
+  orange: '#ea580c', red: '#dc2626', darkred: '#9f1239',
 }
 
 const REC_LEVEL: Record<string, { bg: string; border: string; text: string }> = {
@@ -31,14 +43,62 @@ const REC_LEVEL: Record<string, { bg: string; border: string; text: string }> = 
   info:    { bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8' },
 }
 
+// Кастомная точка для аннотаций вех на графике
+const MilestoneDot = (props: any) => {
+  const { cx, cy, payload } = props
+  if (!payload?.milestone) {
+    return <circle cx={cx} cy={cy} r={2} fill={c.primary} />
+  }
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={6} fill={c.amber} stroke="#fff" strokeWidth={2} />
+      <text x={cx} y={cy - 10} textAnchor="middle" fontSize={8} fill={c.amber} fontWeight={600}>🏁</text>
+    </g>
+  )
+}
+
+// Тултип графика с поддержкой аннотации вехи
 const WTip = ({ active, payload, label: l }: any) => {
   if (!active || !payload?.length) return null
+  const milestone = payload[0]?.payload?.milestone
   return (
     <div style={{ background: '#fff', border: `1px solid ${c.border}`, borderRadius: 8, padding: '8px 12px', fontSize: 11 }}>
       <p style={{ color: c.hint, marginBottom: 3 }}>{l}</p>
+      {milestone && (
+        <p style={{ color: c.amber, fontWeight: 600, fontSize: 10, marginBottom: 3 }}>🏁 {milestone}</p>
+      )}
       <p style={{ color: c.primary, fontWeight: 600 }}>{payload[0]?.value} кг</p>
       {payload[1]?.value && <p style={{ color: c.accent, fontSize: 10 }}>SMA7: {payload[1].value}</p>}
       {payload[2]?.value && <p style={{ color: c.blue, fontSize: 10 }}>SMA14: {payload[2].value}</p>}
+    </div>
+  )
+}
+
+// Индикатор риска WHtR / WHR
+function RatioCard({
+  label, value, threshold, risk, riskLabel, safeLabel, source,
+}: {
+  label: string; value?: number; threshold?: number;
+  risk?: boolean; riskLabel: string; safeLabel: string; source?: string
+}) {
+  if (!value) return (
+    <div style={{ padding: '12px 14px', background: c.bg, border: `1px solid ${c.border}`, borderRadius: 10 }}>
+      <p style={{ fontSize: 10, color: c.hint, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</p>
+      <p style={{ fontSize: 12, color: c.hint, marginTop: 6 }}>Нет данных</p>
+    </div>
+  )
+  const color = risk ? c.red : c.green
+  return (
+    <div style={{ padding: '12px 14px', background: risk ? '#fef2f2' : '#f0fdf4', border: `1px solid ${risk ? '#fecaca' : '#86efac'}`, borderRadius: 10 }}>
+      <p style={{ fontSize: 10, color: c.hint, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{label}</p>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <span style={{ fontSize: 28, fontWeight: 600, color, letterSpacing: '-1px', lineHeight: 1 }}>{value.toFixed(3)}</span>
+        <span style={{ fontSize: 11, color, fontWeight: 500 }}>{risk ? riskLabel : safeLabel}</span>
+      </div>
+      {threshold != null && (
+        <p style={{ fontSize: 10, color, opacity: 0.75, marginTop: 4 }}>Порог: {threshold}</p>
+      )}
+      {source && <p style={{ fontSize: 9, color: c.hint, marginTop: 4 }}>{source}</p>}
     </div>
   )
 }
@@ -49,43 +109,77 @@ export default function WeightPage() {
   const [showForm, setShowForm] = useState(false)
   const [weight, setWeight] = useState('')
   const [note, setNote] = useState('')
-  const [tab, setTab] = useState<'chart' | 'milestones' | 'analytics'>('chart')
+  const [tab, setTab] = useState<'chart' | 'milestones' | 'analytics' | 'body'>('chart')
 
-  const { data: stats } = useQuery({ queryKey: ['weight-stats'], queryFn: () => api.get('/weight/stats').then(r => r.data) })
-  const { data: bmi } = useQuery({ queryKey: ['weight-bmi'], queryFn: () => api.get('/weight/bmi').then(r => r.data) })
+  // Форма замеров тела
+  const [showBodyForm, setShowBodyForm] = useState(false)
+  const [waist, setWaist] = useState('')
+  const [hips, setHips] = useState('')
+  const [chest, setChest] = useState('')
+  const [arms, setArms] = useState('')
+  const [legs, setLegs] = useState('')
+
+  // Запросы
+  const { data: stats }    = useQuery({ queryKey: ['weight-stats'],   queryFn: () => api.get('/weight/stats').then(r => r.data) })
+  const { data: bmi }      = useQuery({ queryKey: ['weight-bmi'],     queryFn: () => api.get('/weight/bmi').then(r => r.data) })
   const { data: forecast } = useQuery({ queryKey: ['weight-forecast'], queryFn: () => api.get('/weight/forecast').then(r => r.data).catch(() => null) })
-  const { data: chart } = useQuery({ queryKey: ['weight-chart', period], queryFn: () => api.get('/weight/chart', { params: { period } }).then(r => r.data) })
+  const { data: chart }    = useQuery({ queryKey: ['weight-chart', period], queryFn: () => api.get('/weight/chart', { params: { period } }).then(r => r.data) })
   const { data: milestones } = useQuery({ queryKey: ['weight-milestones'], queryFn: () => api.get('/weight/milestones').then(r => r.data) })
-  const { data: recs } = useQuery({ queryKey: ['weight-recs'], queryFn: () => api.get('/weight/recommendations').then(r => r.data) })
-  const { data: weekly } = useQuery({ queryKey: ['weight-weekly'], queryFn: () => api.get('/weight/weekly-summary').then(r => r.data) })
-  const { data: logs } = useQuery({ queryKey: ['weight-logs', period], queryFn: () => api.get('/weight/logs', { params: { limit: 50 } }).then(r => r.data) })
+  const { data: recs }     = useQuery({ queryKey: ['weight-recs'],    queryFn: () => api.get('/weight/recommendations').then(r => r.data) })
+  const { data: weekly }   = useQuery({ queryKey: ['weight-weekly'],  queryFn: () => api.get('/weight/weekly-summary').then(r => r.data) })
+  const { data: logs }     = useQuery({ queryKey: ['weight-logs'],    queryFn: () => api.get('/weight/logs', { params: { limit: 50 } }).then(r => r.data) })
+  const { data: bodyStats } = useQuery({ queryKey: ['weight-body-stats'], queryFn: () => api.get('/weight/body/stats').then(r => r.data).catch(() => null) })
+  const { data: bodyMeasurements } = useQuery({ queryKey: ['weight-body-measurements'], queryFn: () => api.get('/weight/body/measurements', { params: { limit: 20 } }).then(r => r.data).catch(() => []) })
 
-  const add = useMutation({
+  // Добавить взвешивание
+  const addWeight = useMutation({
     mutationFn: () => api.post('/weight/logs', { weight_kg: parseFloat(weight), notes: note || undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['weight'] })
       setWeight(''); setNote(''); setShowForm(false)
     },
   })
-  const del = useMutation({
+
+  // Удалить взвешивание
+  const delWeight = useMutation({
     mutationFn: (id: string) => api.delete(`/weight/logs/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['weight'] }),
   })
 
+  // Добавить замеры тела
+  const addBody = useMutation({
+    mutationFn: () => api.post('/weight/body/measurements', {
+      waist_cm: waist ? parseFloat(waist) : undefined,
+      hips_cm:  hips  ? parseFloat(hips)  : undefined,
+      chest_cm: chest ? parseFloat(chest) : undefined,
+      arms_cm:  arms  ? parseFloat(arms)  : undefined,
+      legs_cm:  legs  ? parseFloat(legs)  : undefined,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['weight-body'] })
+      setWaist(''); setHips(''); setChest(''); setArms(''); setLegs('')
+      setShowBodyForm(false)
+    },
+  })
+
   const chartPoints = chart?.points || []
   const bmiColor = bmi?.category?.color ? BMI_COLOR[bmi.category.color] || c.accent : c.accent
-  const bmiPct = bmi?.bmi ? Math.min((bmi.bmi / 40) * 100, 100) : 0
+  const bmiPct   = bmi?.bmi ? Math.min((bmi.bmi / 40) * 100, 100) : 0
+  const ratios   = bodyStats?.ratios || {}
+  const latestMeasurement = bodyStats?.latest_measurement
 
-  const inp: React.CSSProperties = { width: '100%', padding: '9px 12px', border: `1px solid ${c.border}`, borderRadius: 8, fontSize: 13, color: c.primary, outline: 'none', fontFamily: "'DM Sans',sans-serif", background: c.bg }
+  const headerAction = tab === 'body'
+    ? { label: 'Добавить замеры', onClick: () => setShowBodyForm(v => !v) }
+    : { label: 'Взвеситься',      onClick: () => setShowForm(v => !v) }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <Header title="Вес" action={{ label: 'Взвеситься', onClick: () => setShowForm(v => !v) }} />
+      <Header title="Вес" action={headerAction} />
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', background: c.bg }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* Форма */}
-          {showForm && (
+          {/* Форма взвешивания */}
+          {showForm && tab !== 'body' && (
             <div style={card()}>
               <p style={{ fontSize: 14, fontWeight: 600, color: c.primary, marginBottom: 14 }}>Новое взвешивание</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -100,208 +194,244 @@ export default function WeightPage() {
                     onChange={e => setNote(e.target.value)} style={inp} />
                 </div>
               </div>
-              <button onClick={() => weight && add.mutate()} disabled={!weight || add.isPending}
+              <button onClick={() => weight && addWeight.mutate()} disabled={!weight || addWeight.isPending}
                 style={{ marginTop: 14, padding: '10px 24px', background: c.accent, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-                {add.isPending ? 'Сохраняем...' : 'Сохранить'}
+                {addWeight.isPending ? 'Сохраняем...' : 'Сохранить'}
               </button>
             </div>
           )}
 
-          {/* Главный Bento ряд */}
-          <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr 1fr 1fr', gap: 12 }}>
-
-            {/* Текущий вес — тёмный блок */}
-            <div style={{ ...card({ background: c.dark, border: `1px solid ${c.dark}`, gridRow: 'span 2', display: 'flex', flexDirection: 'column' }) }}>
-              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>Текущий вес</p>
-              <div style={{ fontSize: 52, fontWeight: 700, color: '#fff', letterSpacing: '-3px', lineHeight: 1 }}>
-                {stats?.current_weight_kg?.toFixed(1) ?? '—'}
-              </div>
-              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>кг</p>
-
-              {stats?.delta_week_kg != null && (
-                <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(255,255,255,0.07)', borderRadius: 8 }}>
-                  <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', marginBottom: 2 }}>ЗА НЕДЕЛЮ</p>
-                  <p style={{ fontSize: 18, fontWeight: 600, color: stats.delta_week_kg < 0 ? '#86efac' : '#fca5a5' }}>
-                    {stats.delta_week_kg > 0 ? '+' : ''}{stats.delta_week_kg} кг
-                  </p>
-                </div>
-              )}
-
-              {stats?.kg_per_week != null && (
-                <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.07)', borderRadius: 8 }}>
-                  <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', marginBottom: 2 }}>ТЕМП</p>
-                  <p style={{ fontSize: 15, fontWeight: 600, color: stats.kg_per_week < 0 ? '#86efac' : '#fca5a5' }}>
-                    {stats.kg_per_week > 0 ? '+' : ''}{stats.kg_per_week} кг/нед
-                  </p>
-                </div>
-              )}
-
-              <div style={{ flex: 1 }} />
-
-              {stats?.goal_progress_pct != null && (
-                <div style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.07)', borderRadius: 8 }}>
-                  <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', marginBottom: 4 }}>ПРОГРЕСС К ЦЕЛИ</p>
-                  <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 99, overflow: 'hidden', marginBottom: 5 }}>
-                    <div style={{ width: `${stats.goal_progress_pct}%`, height: '100%', background: c.amber, borderRadius: 99 }} />
-                  </div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{stats.goal_progress_pct}%</p>
-                </div>
-              )}
-            </div>
-
-            {/* ИМТ */}
+          {/* Форма замеров тела */}
+          {showBodyForm && tab === 'body' && (
             <div style={card()}>
-              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 8 }}>ИМТ</p>
-              {bmi ? (
-                <>
-                  <div style={{ fontSize: 28, fontWeight: 600, color: bmiColor, letterSpacing: '-1px', lineHeight: 1 }}>
-                    {bmi.bmi}
+              <p style={{ fontSize: 14, fontWeight: 600, color: c.primary, marginBottom: 14 }}>Новые замеры</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+                {[
+                  { label: 'Талия (см)', val: waist, set: setWaist, ph: '80' },
+                  { label: 'Бёдра (см)',  val: hips,  set: setHips,  ph: '100' },
+                  { label: 'Грудь (см)',  val: chest, set: setChest, ph: '95' },
+                  { label: 'Руки (см)',   val: arms,  set: setArms,  ph: '32' },
+                  { label: 'Ноги (см)',   val: legs,  set: setLegs,  ph: '60' },
+                ].map(({ label, val, set, ph }) => (
+                  <div key={label}>
+                    <p style={{ fontSize: 11, color: c.muted, marginBottom: 5 }}>{label}</p>
+                    <input type="number" step="0.1" placeholder={ph} value={val}
+                      onChange={e => set(e.target.value)} style={inp} />
                   </div>
-                  <p style={{ fontSize: 11, color: bmiColor, marginTop: 5, fontWeight: 500 }}>{bmi.category?.name}</p>
-                  {/* Полоска ИМТ */}
-                  <div style={{ marginTop: 10, position: 'relative' }}>
-                    <div style={{ display: 'flex', height: 6, borderRadius: 99, overflow: 'hidden' }}>
-                      <div style={{ flex: 18.5, background: '#3b82f6' }} />
-                      <div style={{ flex: 6.5, background: '#16a34a' }} />
-                      <div style={{ flex: 5, background: '#d97706' }} />
-                      <div style={{ flex: 5, background: '#ea580c' }} />
-                      <div style={{ flex: 5, background: '#dc2626' }} />
+                ))}
+              </div>
+              <button
+                onClick={() => (waist || hips || chest || arms || legs) && addBody.mutate()}
+                disabled={!(waist || hips || chest || arms || legs) || addBody.isPending}
+                style={{ marginTop: 14, padding: '10px 24px', background: c.accent, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                {addBody.isPending ? 'Сохраняем...' : 'Сохранить замеры'}
+              </button>
+            </div>
+          )}
+
+          {/* Bento-ряд метрик — только на не-body вкладках */}
+          {tab !== 'body' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr 1fr 1fr', gap: 12 }}>
+
+              {/* Текущий вес — тёмный блок */}
+              <div style={{ ...card({ background: c.dark, border: `1px solid ${c.dark}`, gridRow: 'span 2', display: 'flex', flexDirection: 'column' }) }}>
+                <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>Текущий вес</p>
+                <div style={{ fontSize: 52, fontWeight: 700, color: '#fff', letterSpacing: '-3px', lineHeight: 1 }}>
+                  {stats?.current_weight_kg?.toFixed(1) ?? '—'}
+                </div>
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>кг</p>
+
+                {stats?.delta_week_kg != null && (
+                  <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(255,255,255,0.07)', borderRadius: 8 }}>
+                    <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', marginBottom: 2 }}>ЗА НЕДЕЛЮ</p>
+                    <p style={{ fontSize: 18, fontWeight: 600, color: stats.delta_week_kg < 0 ? '#86efac' : '#fca5a5' }}>
+                      {stats.delta_week_kg > 0 ? '+' : ''}{stats.delta_week_kg} кг
+                    </p>
+                  </div>
+                )}
+
+                {stats?.kg_per_week != null && (
+                  <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.07)', borderRadius: 8 }}>
+                    <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', marginBottom: 2 }}>ТЕМП</p>
+                    <p style={{ fontSize: 15, fontWeight: 600, color: stats.kg_per_week < 0 ? '#86efac' : '#fca5a5' }}>
+                      {stats.kg_per_week > 0 ? '+' : ''}{stats.kg_per_week} кг/нед
+                    </p>
+                  </div>
+                )}
+
+                {stats?.on_plateau && (
+                  <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(251,191,36,0.15)', borderRadius: 8, border: '1px solid rgba(251,191,36,0.3)' }}>
+                    <p style={{ fontSize: 10, color: '#fbbf24', fontWeight: 600 }}>⚡ Плато</p>
+                    <p style={{ fontSize: 9, color: 'rgba(251,191,36,0.7)', marginTop: 2 }}>Нет изменений {stats.plateau_days} дней</p>
+                  </div>
+                )}
+
+                <div style={{ flex: 1 }} />
+
+                {stats?.goal_progress_pct != null && (
+                  <div style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.07)', borderRadius: 8 }}>
+                    <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', marginBottom: 4 }}>ПРОГРЕСС К ЦЕЛИ</p>
+                    <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 99, overflow: 'hidden', marginBottom: 5 }}>
+                      <div style={{ width: `${stats.goal_progress_pct}%`, height: '100%', background: c.amber, borderRadius: 99 }} />
                     </div>
-                    <div style={{
-                      position: 'absolute', top: -2, width: 10, height: 10, borderRadius: '50%',
-                      background: '#fff', border: `2px solid ${bmiColor}`, boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-                      left: `calc(${Math.min(bmiPct, 96)}% - 5px)`,
-                    }} />
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{stats.goal_progress_pct}%</p>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                    <span style={{ fontSize: 9, color: c.hint }}>16</span>
-                    <span style={{ fontSize: 9, color: c.hint }}>40+</span>
-                  </div>
-                  <p style={{ fontSize: 10, color: c.hint, marginTop: 6 }}>Источник: {bmi.category?.source}</p>
-                </>
-              ) : <p style={{ fontSize: 12, color: c.hint }}>Укажи рост в настройках</p>}
-            </div>
+                )}
+              </div>
 
-            {/* Идеальный вес */}
-            <div style={card()}>
-              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 8 }}>Идеальный вес</p>
-              {bmi?.ideal_weight ? (
-                <>
-                  <div style={{ fontSize: 28, fontWeight: 600, color: c.accent, letterSpacing: '-1px', lineHeight: 1 }}>
-                    {bmi.ideal_weight.mean_kg}<span style={{ fontSize: 12, fontWeight: 400, color: c.hint, marginLeft: 3 }}>кг</span>
-                  </div>
-                  <p style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>
-                    Диапазон: {bmi.ideal_weight.min_kg}–{bmi.ideal_weight.max_kg} кг
-                  </p>
-                  <p style={{ fontSize: 10, color: c.hint, marginTop: 3 }}>
-                    До идеала: {bmi.to_ideal_weight_kg > 0 ? `${bmi.to_ideal_weight_kg} кг` : 'Достигнут! 🎉'}
-                  </p>
-                  <p style={{ fontSize: 9, color: c.hint, marginTop: 6 }}>
-                    {bmi.ideal_weight.sources?.join(' · ')}
-                  </p>
-                </>
-              ) : <p style={{ fontSize: 12, color: c.hint }}>Укажи рост и пол в настройках</p>}
-            </div>
-
-            {/* Прогноз */}
-            <div style={card()}>
-              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 8 }}>Прогноз</p>
-              {forecast?.possible ? (
-                <>
-                  <div style={{ fontSize: 20, fontWeight: 600, color: c.primary, letterSpacing: '-0.5px', lineHeight: 1 }}>
-                    {forecast.realistic?.date
-                      ? new Date(forecast.realistic.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
-                      : '—'}
-                  </div>
-                  <p style={{ fontSize: 10, color: c.hint, marginTop: 4 }}>Реалистичный сценарий</p>
-                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {forecast.optimistic?.date && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 10, color: c.green }}>Оптимистично</span>
-                        <span style={{ fontSize: 10, fontWeight: 500, color: c.green }}>
-                          {new Date(forecast.optimistic.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                        </span>
-                      </div>
-                    )}
-                    {forecast.pessimistic?.date && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 10, color: c.hint }}>Пессимистично</span>
-                        <span style={{ fontSize: 10, color: c.hint }}>
-                          {new Date(forecast.pessimistic.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <p style={{ fontSize: 9, color: c.hint, marginTop: 6 }}>{forecast.source}</p>
-                </>
-              ) : (
-                <p style={{ fontSize: 12, color: c.hint }}>
-                  {forecast?.reason || 'Нужно больше взвешиваний'}
-                </p>
-              )}
-            </div>
-
-            {/* Неделя — статистика */}
-            <div style={{ ...card({ gridColumn: 'span 2' }), display: 'flex', gap: 20 }}>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 10 }}>Эта неделя</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {[
-                    { l: 'Среднее', v: weekly?.this_week?.avg ? `${weekly.this_week.avg} кг` : '—' },
-                    { l: 'Взвешиваний', v: `${weekly?.this_week?.count ?? 0} раз` },
-                    { l: 'Мин', v: weekly?.this_week?.min ? `${weekly.this_week.min} кг` : '—' },
-                    { l: 'Макс', v: weekly?.this_week?.max ? `${weekly.this_week.max} кг` : '—' },
-                  ].map(({ l, v }) => (
-                    <div key={l} style={{ padding: '8px 10px', background: c.bg, borderRadius: 8, border: `1px solid ${c.border}` }}>
-                      <p style={{ fontSize: 9, color: c.hint, marginBottom: 2 }}>{l}</p>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: c.primary }}>{v}</p>
+              {/* ИМТ */}
+              <div style={card()}>
+                <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 8 }}>ИМТ</p>
+                {bmi ? (
+                  <>
+                    <div style={{ fontSize: 28, fontWeight: 600, color: bmiColor, letterSpacing: '-1px', lineHeight: 1 }}>
+                      {bmi.bmi}
                     </div>
-                  ))}
+                    <p style={{ fontSize: 11, color: bmiColor, marginTop: 5, fontWeight: 500 }}>{bmi.category?.name}</p>
+                    <div style={{ marginTop: 10, position: 'relative' }}>
+                      <div style={{ display: 'flex', height: 6, borderRadius: 99, overflow: 'hidden' }}>
+                        <div style={{ flex: 18.5, background: '#3b82f6' }} />
+                        <div style={{ flex: 6.5,  background: '#16a34a' }} />
+                        <div style={{ flex: 5,    background: '#d97706' }} />
+                        <div style={{ flex: 5,    background: '#ea580c' }} />
+                        <div style={{ flex: 5,    background: '#dc2626' }} />
+                      </div>
+                      <div style={{
+                        position: 'absolute', top: -2, width: 10, height: 10, borderRadius: '50%',
+                        background: '#fff', border: `2px solid ${bmiColor}`, boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                        left: `calc(${Math.min(bmiPct, 96)}% - 5px)`,
+                      }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                      <span style={{ fontSize: 9, color: c.hint }}>16</span>
+                      <span style={{ fontSize: 9, color: c.hint }}>40+</span>
+                    </div>
+                    <p style={{ fontSize: 10, color: c.hint, marginTop: 6 }}>Источник: {bmi.category?.source}</p>
+                  </>
+                ) : <p style={{ fontSize: 12, color: c.hint }}>Укажи рост в настройках</p>}
+              </div>
+
+              {/* Идеальный вес */}
+              <div style={card()}>
+                <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 8 }}>Идеальный вес</p>
+                {bmi?.ideal_weight ? (
+                  <>
+                    <div style={{ fontSize: 28, fontWeight: 600, color: c.accent, letterSpacing: '-1px', lineHeight: 1 }}>
+                      {bmi.ideal_weight.mean_kg}<span style={{ fontSize: 12, fontWeight: 400, color: c.hint, marginLeft: 3 }}>кг</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>
+                      Диапазон: {bmi.ideal_weight.min_kg}–{bmi.ideal_weight.max_kg} кг
+                    </p>
+                    <p style={{ fontSize: 10, color: c.hint, marginTop: 3 }}>
+                      До идеала: {bmi.to_ideal_weight_kg > 0 ? `${bmi.to_ideal_weight_kg} кг` : '✓ Достигнут'}
+                    </p>
+                    <p style={{ fontSize: 9, color: c.hint, marginTop: 6 }}>
+                      {bmi.ideal_weight.sources?.join(' · ')}
+                    </p>
+                  </>
+                ) : <p style={{ fontSize: 12, color: c.hint }}>Укажи рост и пол в настройках</p>}
+              </div>
+
+              {/* Прогноз */}
+              <div style={card()}>
+                <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 8 }}>Прогноз</p>
+                {forecast?.possible ? (
+                  <>
+                    <div style={{ fontSize: 20, fontWeight: 600, color: c.primary, letterSpacing: '-0.5px', lineHeight: 1 }}>
+                      {forecast.realistic?.date
+                        ? new Date(forecast.realistic.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+                        : '—'}
+                    </div>
+                    <p style={{ fontSize: 10, color: c.hint, marginTop: 4 }}>Реалистичный сценарий</p>
+                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {forecast.optimistic?.date && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 10, color: c.green }}>Оптимистично</span>
+                          <span style={{ fontSize: 10, fontWeight: 500, color: c.green }}>
+                            {new Date(forecast.optimistic.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                          </span>
+                        </div>
+                      )}
+                      {forecast.pessimistic?.date && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 10, color: c.hint }}>Пессимистично</span>
+                          <span style={{ fontSize: 10, color: c.hint }}>
+                            {new Date(forecast.pessimistic.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <p style={{ fontSize: 9, color: c.hint, marginTop: 6 }}>{forecast.source}</p>
+                  </>
+                ) : (
+                  <p style={{ fontSize: 12, color: c.hint }}>
+                    {forecast?.reason || 'Нужно больше взвешиваний'}
+                  </p>
+                )}
+              </div>
+
+              {/* Эта и прошлая неделя */}
+              <div style={{ ...card({ gridColumn: 'span 2' }), display: 'flex', gap: 20 }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 10 }}>Эта неделя</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {[
+                      { l: 'Среднее',       v: weekly?.this_week?.avg   ? `${weekly.this_week.avg} кг`   : '—' },
+                      { l: 'Взвешиваний',   v: `${weekly?.this_week?.count ?? 0} раз` },
+                      { l: 'Мин',           v: weekly?.this_week?.min   ? `${weekly.this_week.min} кг`   : '—' },
+                      { l: 'Макс',          v: weekly?.this_week?.max   ? `${weekly.this_week.max} кг`   : '—' },
+                    ].map(({ l, v }) => (
+                      <div key={l} style={{ padding: '8px 10px', background: c.bg, borderRadius: 8, border: `1px solid ${c.border}` }}>
+                        <p style={{ fontSize: 9, color: c.hint, marginBottom: 2 }}>{l}</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: c.primary }}>{v}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ width: 1, background: c.border, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 10 }}>Прошлая неделя</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {[
+                      { l: 'Среднее',       v: weekly?.last_week?.avg ? `${weekly.last_week.avg} кг` : '—' },
+                      { l: 'Взвешиваний',   v: `${weekly?.last_week?.count ?? 0} раз` },
+                      { l: 'Изменение',     v: weekly?.delta_vs_last_week != null ? `${weekly.delta_vs_last_week > 0 ? '+' : ''}${weekly.delta_vs_last_week} кг` : '—', color: (weekly?.delta_vs_last_week ?? 0) < 0 ? c.green : c.red },
+                      { l: 'Стрик взвеш.',  v: `${stats?.weighing_streak ?? 0} дн.` },
+                    ].map(({ l, v, color }: any) => (
+                      <div key={l} style={{ padding: '8px 10px', background: c.bg, borderRadius: 8, border: `1px solid ${c.border}` }}>
+                        <p style={{ fontSize: 9, color: c.hint, marginBottom: 2 }}>{l}</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: color || c.primary }}>{v}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div style={{ width: 1, background: c.border, flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 10 }}>Прошлая неделя</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {[
-                    { l: 'Среднее', v: weekly?.last_week?.avg ? `${weekly.last_week.avg} кг` : '—' },
-                    { l: 'Взвешиваний', v: `${weekly?.last_week?.count ?? 0} раз` },
-                    { l: 'Изменение', v: weekly?.delta_vs_last_week != null ? `${weekly.delta_vs_last_week > 0 ? '+' : ''}${weekly.delta_vs_last_week} кг` : '—', color: (weekly?.delta_vs_last_week ?? 0) < 0 ? c.green : c.red },
-                    { l: 'Стрик взвеш.', v: `${stats?.weighing_streak ?? 0} дн.` },
-                  ].map(({ l, v, color }: any) => (
-                    <div key={l} style={{ padding: '8px 10px', background: c.bg, borderRadius: 8, border: `1px solid ${c.border}` }}>
-                      <p style={{ fontSize: 9, color: c.hint, marginBottom: 2 }}>{l}</p>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: color || c.primary }}>{v}</p>
-                    </div>
-                  ))}
+
+              {/* Рекомендации */}
+              <div style={{ ...card({ gridColumn: 'span 2' }) }}>
+                <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 10 }}>Рекомендации</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(recs || []).map((r: any) => {
+                    const s = REC_LEVEL[r.level] || REC_LEVEL.info
+                    return (
+                      <div key={r.code} style={{ padding: '10px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: s.text }}>{r.title}</p>
+                          {r.source && <span style={{ fontSize: 9, color: s.text, opacity: 0.7, marginLeft: 'auto' }}>{r.source}</span>}
+                        </div>
+                        <p style={{ fontSize: 11, color: s.text, opacity: 0.85 }}>{r.text}</p>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
-            </div>
 
-            {/* Рекомендации */}
-            <div style={{ ...card({ gridColumn: 'span 2' }) }}>
-              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 10 }}>Рекомендации</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {(recs || []).map((r: any) => {
-                  const style = REC_LEVEL[r.level] || REC_LEVEL.info
-                  return (
-                    <div key={r.code} style={{ padding: '10px 14px', background: style.bg, border: `1px solid ${style.border}`, borderRadius: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: style.text }}>{r.title}</p>
-                        {r.source && <span style={{ fontSize: 9, color: style.text, opacity: 0.7, marginLeft: 'auto' }}>{r.source}</span>}
-                      </div>
-                      <p style={{ fontSize: 11, color: style.text, opacity: 0.85 }}>{r.text}</p>
-                    </div>
-                  )
-                })}
-              </div>
             </div>
-
-          </div>
+          )}
 
           {/* Вкладки */}
           <div style={{ display: 'flex', gap: 6, borderBottom: `1px solid ${c.border}`, paddingBottom: 0 }}>
-            {(['chart', 'milestones', 'analytics'] as const).map(t => (
+            {(['chart', 'milestones', 'analytics', 'body'] as const).map(t => (
               <button key={t} onClick={() => setTab(t)} style={{
                 padding: '8px 16px', fontSize: 12, fontWeight: tab === t ? 600 : 400,
                 color: tab === t ? c.accent : c.muted,
@@ -310,7 +440,7 @@ export default function WeightPage() {
                 cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
                 marginBottom: -1,
               }}>
-                {{ chart: '📈 График', milestones: '🏁 Вехи', analytics: '📊 История' }[t]}
+                {{ chart: '📈 График', milestones: '🏁 Вехи', analytics: '📊 История', body: '📐 Замеры' }[t]}
               </button>
             ))}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 5, alignItems: 'center' }}>
@@ -325,12 +455,12 @@ export default function WeightPage() {
             </div>
           </div>
 
-          {/* График */}
+          {/* ── Вкладка: График ── */}
           {tab === 'chart' && (
             <div style={card()}>
               {chartPoints.length > 1 ? (
                 <ResponsiveContainer width="100%" height={240}>
-                  <LineChart data={chartPoints} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                  <LineChart data={chartPoints} margin={{ top: 10, right: 5, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0ede4" />
                     <XAxis dataKey="date" tick={{ fontSize: 10, fill: c.hint }} tickLine={false} axisLine={false} />
                     <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: c.hint }} tickLine={false} axisLine={false} />
@@ -339,9 +469,12 @@ export default function WeightPage() {
                       <ReferenceLine y={chart.target_weight_kg} stroke={c.accent} strokeDasharray="5 5"
                         label={{ value: `Цель: ${chart.target_weight_kg}`, fill: c.accent, fontSize: 10, position: 'right' }} />
                     )}
-                    <Line type="monotone" dataKey="weight" stroke={c.primary} strokeWidth={2} dot={{ fill: c.primary, r: 2 }} activeDot={{ r: 4 }} name="Вес" />
-                    <Line type="monotone" dataKey="sma7" stroke={c.accent} strokeWidth={1.5} dot={false} name="SMA 7" strokeDasharray="3 2" />
-                    <Line type="monotone" dataKey="sma14" stroke={c.blue} strokeWidth={1.5} dot={false} name="SMA 14" strokeDasharray="5 3" />
+                    <Line
+                      type="monotone" dataKey="weight" stroke={c.primary} strokeWidth={2}
+                      dot={<MilestoneDot />} activeDot={{ r: 4 }} name="Вес"
+                    />
+                    <Line type="monotone" dataKey="sma7"  stroke={c.accent} strokeWidth={1.5} dot={false} name="SMA 7"  strokeDasharray="3 2" />
+                    <Line type="monotone" dataKey="sma14" stroke={c.blue}   strokeWidth={1.5} dot={false} name="SMA 14" strokeDasharray="5 3" />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
@@ -349,14 +482,18 @@ export default function WeightPage() {
                   Добавь первое взвешивание
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: 20, marginTop: 10, flexWrap: 'wrap' }}>
                 {[
-                  { color: c.primary, label: 'Вес' },
-                  { color: c.accent, label: 'SMA 7 (среднее за 7 дней)' },
-                  { color: c.blue, label: 'SMA 14 (среднее за 14 дней)' },
-                ].map(({ color, label }) => (
-                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div style={{ width: 16, height: 2, background: color, borderRadius: 99 }} />
+                  { color: c.primary, label: 'Вес', dashed: false },
+                  { color: c.accent,  label: 'SMA 7 (среднее 7 дней)',  dashed: true },
+                  { color: c.blue,    label: 'SMA 14 (среднее 14 дней)', dashed: true },
+                  { color: c.amber,   label: '🏁 Веха на пути', dashed: false, dot: true },
+                ].map(({ color, label, dashed, dot }) => (
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {dot
+                      ? <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, border: '2px solid #fff', boxShadow: `0 0 0 1px ${color}` }} />
+                      : <div style={{ width: 16, height: 2, background: color, borderRadius: 99, borderTop: dashed ? `1px dashed ${color}` : 'none' }} />
+                    }
                     <span style={{ fontSize: 10, color: c.hint }}>{label}</span>
                   </div>
                 ))}
@@ -364,11 +501,13 @@ export default function WeightPage() {
             </div>
           )}
 
-          {/* Вехи */}
+          {/* ── Вкладка: Вехи ── */}
           {tab === 'milestones' && (
             <div style={card()}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {(milestones || []).length === 0 && <p style={{ fontSize: 13, color: c.hint, textAlign: 'center', padding: 20 }}>Нет данных</p>}
+                {(milestones || []).length === 0 && (
+                  <p style={{ fontSize: 13, color: c.hint, textAlign: 'center', padding: 20 }}>Нет данных</p>
+                )}
                 {(milestones || []).map((m: any) => (
                   <div key={m.code} style={{
                     display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px',
@@ -409,26 +548,140 @@ export default function WeightPage() {
             </div>
           )}
 
-          {/* История */}
+          {/* ── Вкладка: История (+ сводная статистика) ── */}
           {tab === 'analytics' && (
-            <div style={card()}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: c.primary, marginBottom: 14 }}>История взвешиваний</p>
-              {!logs?.length && <p style={{ fontSize: 13, color: c.hint, textAlign: 'center', padding: 20 }}>Нет записей</p>}
-              {logs?.map((l: any, i: number) => (
-                <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderBottom: i < logs.length - 1 ? `1px solid ${c.border}` : 'none' }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 10, background: '#eef4d8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: c.accent }}>{l.weight_kg}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+              {/* Сводная статистика за всё время */}
+              {stats && Object.keys(stats).length > 0 && (
+                <div style={card()}>
+                  <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 12 }}>Статистика за всё время</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+                    {[
+                      { l: 'Минимум',      v: stats.min_weight_kg  != null ? `${stats.min_weight_kg} кг`  : '—' },
+                      { l: 'Максимум',     v: stats.max_weight_kg  != null ? `${stats.max_weight_kg} кг`  : '—' },
+                      { l: 'Среднее',      v: stats.avg_weight_kg  != null ? `${stats.avg_weight_kg} кг`  : '—' },
+                      { l: 'Всего изменение', v: stats.delta_total_kg != null ? `${stats.delta_total_kg > 0 ? '+' : ''}${stats.delta_total_kg} кг` : '—', color: (stats.delta_total_kg ?? 0) < 0 ? c.green : c.red },
+                      { l: 'Волатильность', v: stats.volatility_kg  != null ? `±${stats.volatility_kg} кг` : '—' },
+                      { l: 'Взвешиваний',  v: `${stats.total_logs ?? 0}` },
+                    ].map(({ l, v, color }: any) => (
+                      <div key={l} style={{ padding: '10px 12px', background: c.bg, borderRadius: 8, border: `1px solid ${c.border}` }}>
+                        <p style={{ fontSize: 9, color: c.hint, marginBottom: 3 }}>{l}</p>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: color || c.primary }}>{v}</p>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: c.primary }}>{l.weight_kg} кг</p>
-                    {l.notes && <p style={{ fontSize: 11, color: c.muted }}>{l.notes}</p>}
-                  </div>
-                  <p style={{ fontSize: 11, color: c.hint }}>
-                    {new Date(l.logged_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                  <button onClick={() => del.mutate(l.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e88', fontSize: 13, padding: '4px 8px' }}>✕</button>
                 </div>
-              ))}
+              )}
+
+              {/* История взвешиваний */}
+              <div style={card()}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: c.primary, marginBottom: 14 }}>История взвешиваний</p>
+                {!logs?.length && (
+                  <p style={{ fontSize: 13, color: c.hint, textAlign: 'center', padding: 20 }}>Нет записей</p>
+                )}
+                {logs?.map((l: any, i: number) => (
+                  <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderBottom: i < logs.length - 1 ? `1px solid ${c.border}` : 'none' }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 10, background: '#eef4d8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: c.accent }}>{l.weight_kg}</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: c.primary }}>{l.weight_kg} кг</p>
+                      {l.notes && <p style={{ fontSize: 11, color: c.muted }}>{l.notes}</p>}
+                    </div>
+                    <p style={{ fontSize: 11, color: c.hint }}>
+                      {new Date(l.logged_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                    <button onClick={() => delWeight.mutate(l.id)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e88', fontSize: 13, padding: '4px 8px' }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Вкладка: Замеры тела ── */}
+          {tab === 'body' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+              {/* WHtR + WHR */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <RatioCard
+                  label="WHtR — талия/рост"
+                  value={ratios.whtr?.value}
+                  threshold={ratios.whtr?.threshold}
+                  risk={ratios.whtr?.risk}
+                  riskLabel="Высокий кардиориск"
+                  safeLabel="Норма"
+                  source={ratios.whtr?.source}
+                />
+                <RatioCard
+                  label="WHR — талия/бёдра"
+                  value={ratios.whr?.value}
+                  threshold={ratios.whr?.threshold}
+                  risk={ratios.whr?.risk}
+                  riskLabel="Высокий риск"
+                  safeLabel="Норма"
+                  source={ratios.whr?.source}
+                />
+              </div>
+
+              {/* Последние замеры */}
+              {latestMeasurement && (
+                <div style={card()}>
+                  <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: c.hint, marginBottom: 12 }}>
+                    Последние замеры · {new Date(latestMeasurement.measured_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+                    {[
+                      { l: 'Талия',  v: latestMeasurement.waist_cm },
+                      { l: 'Бёдра', v: latestMeasurement.hips_cm  },
+                      { l: 'Грудь', v: latestMeasurement.chest_cm },
+                      { l: 'Руки',  v: latestMeasurement.arms_cm  },
+                      { l: 'Ноги',  v: latestMeasurement.legs_cm  },
+                    ].map(({ l, v }) => (
+                      <div key={l} style={{ padding: '10px 12px', background: c.bg, borderRadius: 8, border: `1px solid ${c.border}` }}>
+                        <p style={{ fontSize: 9, color: c.hint, marginBottom: 3 }}>{l}</p>
+                        <p style={{ fontSize: 18, fontWeight: 600, color: v ? c.primary : c.hint }}>
+                          {v ? `${v}` : '—'}
+                          {v && <span style={{ fontSize: 10, fontWeight: 400, color: c.hint, marginLeft: 2 }}>см</span>}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* История замеров */}
+              <div style={card()}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: c.primary, marginBottom: 14 }}>История замеров</p>
+                {!(bodyMeasurements?.length) && (
+                  <p style={{ fontSize: 13, color: c.hint, textAlign: 'center', padding: '20px 0' }}>
+                    Нет замеров — нажми «Добавить замеры» в шапке
+                  </p>
+                )}
+                {(bodyMeasurements || []).map((m: any, i: number) => (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderBottom: i < bodyMeasurements.length - 1 ? `1px solid ${c.border}` : 'none' }}>
+                    <p style={{ fontSize: 11, color: c.hint, flexShrink: 0, width: 90 }}>
+                      {new Date(m.measured_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                    </p>
+                    <div style={{ flex: 1, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                      {[
+                        ['Талия', m.waist_cm],
+                        ['Бёдра', m.hips_cm],
+                        ['Грудь', m.chest_cm],
+                        ['Руки',  m.arms_cm],
+                        ['Ноги',  m.legs_cm],
+                      ].filter(([, v]) => v != null).map(([l, v]) => (
+                        <span key={l as string} style={{ fontSize: 12, color: c.primary }}>
+                          <span style={{ color: c.hint, fontSize: 10 }}>{l} </span>{v} см
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
             </div>
           )}
 

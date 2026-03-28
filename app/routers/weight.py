@@ -9,7 +9,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user_dep
 from app.models.user import User
 from app.schemas.weight import (
-    WeightLogCreate, WeightLogResponse, WeightStatsResponse,
+    WeightLogCreate, WeightLogResponse,
     BodyMeasurementCreate, BodyMeasurementResponse,
 )
 from app.services.weight import (
@@ -117,11 +117,11 @@ async def weight_bmi(
     to_normal = round(weight - bmi_range["max_kg"], 1) if weight > bmi_range["max_kg"] else 0
 
     result = {
-        "bmi":            bmi,
-        "category":       category,
-        "weight_kg":      weight,
-        "height_cm":      profile.height_cm,
-        "bmi_normal_range": bmi_range,
+        "bmi":               bmi,
+        "category":          category,
+        "weight_kg":         weight,
+        "height_cm":         profile.height_cm,
+        "bmi_normal_range":  bmi_range,
         "to_normal_weight_kg": to_normal,
     }
 
@@ -173,22 +173,35 @@ async def weight_chart(
     from app.models.weight import WeightLog
     from datetime import timedelta
 
-    from_dt = datetime.now(timezone.utc) - timedelta(days=period)
-    logs_result = await db.execute(
-        select(WeightLog)
-        .where(WeightLog.user_id == current_user.id, WeightLog.logged_at >= from_dt)
-        .order_by(WeightLog.logged_at)
+    # Все логи нужны для milestones (стартовый вес, прогноз)
+    all_logs_result = await db.execute(
+        select(WeightLog).where(WeightLog.user_id == current_user.id).order_by(WeightLog.logged_at)
     )
-    logs = list(logs_result.scalars().all())
+    all_logs = list(all_logs_result.scalars().all())
+
+    # Логи за выбранный период — для точек графика
+    from_dt = datetime.now(timezone.utc) - timedelta(days=period)
+    period_logs = [l for l in all_logs if l.logged_at >= from_dt]
 
     profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
     profile = profile_result.scalar_one_or_none()
 
+    # Считаем milestones, чтобы отметить их на графике
+    milestones = None
+    if all_logs:
+        start   = all_logs[0].weight_kg
+        current = all_logs[-1].weight_kg
+        target  = profile.target_weight_kg if profile else None
+        height  = profile.height_cm if profile else None
+        gender  = profile.gender if profile else None
+        forecast = wa.calc_forecast(all_logs, target) if target and len(all_logs) >= wa.MIN_LOGS_FOR_FORECAST else None
+        milestones = wa.build_milestones(start, current, target, height, gender, all_logs, forecast)
+
     return {
-        "period_days":       period,
-        "points":            wa.build_chart_data(logs),
-        "target_weight_kg":  profile.target_weight_kg if profile else None,
-        "total_points":      len(logs),
+        "period_days":      period,
+        "points":           wa.build_chart_data(period_logs, milestones),
+        "target_weight_kg": profile.target_weight_kg if profile else None,
+        "total_points":     len(period_logs),
     }
 
 
@@ -312,7 +325,7 @@ async def body_stats(
 
     ratios = wa.calc_body_ratios(
         waist_cm=latest.waist_cm,
-        hip_cm=latest.hip_cm,
+        hip_cm=latest.hips_cm,       # fix: hips_cm — имя поля в модели
         height_cm=profile.height_cm if profile else None,
         gender=profile.gender if profile else None,
     )
@@ -321,9 +334,10 @@ async def body_stats(
         "latest_measurement": {
             "measured_at": latest.measured_at.isoformat(),
             "waist_cm":    latest.waist_cm,
-            "hip_cm":      latest.hip_cm,
+            "hips_cm":     latest.hips_cm,   # fix: hips_cm
             "chest_cm":    latest.chest_cm,
-            "neck_cm":     latest.neck_cm,
+            "arms_cm":     latest.arms_cm,   # fix: было несуществующее neck_cm
+            "legs_cm":     latest.legs_cm,
         },
         "ratios": ratios,
     }
