@@ -6,21 +6,31 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, className = '', ...props }, ref) => {
+  ({ label, error, style, ...props }, ref) => {
     return (
-      <div className="flex flex-col gap-1">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {label && (
-          <label className="text-xs font-medium text-secondary">{label}</label>
+          <label style={{ fontSize: 12, fontWeight: 500, color: '#5a6e2a' }}>{label}</label>
         )}
         <input
           ref={ref}
-          className={`w-full px-3 py-2 text-sm bg-card border rounded text-primary placeholder:text-hint outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent/20 disabled:opacity-50 disabled:cursor-not-allowed ${error ? 'border-red-400' : 'border-border'} ${className}`}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            fontSize: 13,
+            background: '#ffffff',
+            border: `1px solid ${error ? '#f87171' : '#ddd8c0'}`,
+            borderRadius: 7,
+            color: '#2a3010',
+            outline: 'none',
+            fontFamily: "'DM Sans', sans-serif",
+            ...style,
+          }}
           {...props}
         />
-        {error && <span className="text-xs text-red-500">{error}</span>}
+        {error && <span style={{ fontSize: 11, color: '#dc2626' }}>{error}</span>}
       </div>
     )
   }
 )
-
 Input.displayName = 'Input'

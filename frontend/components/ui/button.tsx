@@ -5,23 +5,34 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: 'sm' | 'md' | 'lg'
 }
 
+const base: React.CSSProperties = {
+  fontFamily: "'DM Sans', sans-serif",
+  fontWeight: 500,
+  cursor: 'pointer',
+  border: 'none',
+  transition: 'all 0.12s',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+
 const variants = {
-  primary: 'bg-accent text-white hover:bg-accent-dark',
-  secondary: 'bg-accent-bg text-accent hover:bg-accent-light border border-border',
-  ghost: 'bg-transparent border border-border text-secondary hover:bg-hover',
-  danger: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200',
+  primary: { background: '#6a8a2a', color: '#fff', border: 'none' },
+  secondary: { background: '#eef4d8', color: '#6a8a2a', border: '1px solid #ddd8c0' },
+  ghost: { background: 'transparent', color: '#5a6e2a', border: '1px solid #ddd8c0' },
+  danger: { background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' },
 }
 
 const sizes = {
-  sm: 'px-3 py-1.5 text-xs rounded',
-  md: 'px-4 py-2 text-sm rounded',
-  lg: 'px-5 py-2.5 text-sm rounded-lg',
+  sm: { padding: '5px 12px', fontSize: 12, borderRadius: 6 },
+  md: { padding: '7px 16px', fontSize: 13, borderRadius: 8 },
+  lg: { padding: '9px 20px', fontSize: 14, borderRadius: 8 },
 }
 
-export function Button({ variant = 'primary', size = 'md', className = '', children, ...props }: ButtonProps) {
+export function Button({ variant = 'primary', size = 'md', style, children, ...props }: ButtonProps) {
   return (
     <button
-      className={`font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      style={{ ...base, ...variants[variant], ...sizes[size], ...style }}
       {...props}
     >
       {children}

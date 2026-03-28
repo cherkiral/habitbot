@@ -1,21 +1,28 @@
 interface CardProps {
   children: React.ReactNode
+  style?: React.CSSProperties
   className?: string
-  padding?: 'sm' | 'md' | 'lg'
 }
 
-export function Card({ children, className = '', padding = 'md' }: CardProps) {
-  const p = { sm: 'p-3', md: 'p-4', lg: 'p-5' }[padding]
+const cardStyle: React.CSSProperties = {
+  background: '#ffffff',
+  border: '1px solid #ddd8c0',
+  borderRadius: 10,
+  padding: 16,
+  boxShadow: '0 1px 3px rgba(42,48,16,.06)',
+}
+
+export function Card({ children, style, className }: CardProps) {
   return (
-    <div className={`bg-card border border-border rounded-lg shadow-sm ${p} ${className}`}>
+    <div style={{ ...cardStyle, ...style }} className={className}>
       {children}
     </div>
   )
 }
 
-export function CardHeader({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+export function CardHeader({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`flex items-center justify-between mb-3 ${className}`}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
       {children}
     </div>
   )
@@ -23,7 +30,7 @@ export function CardHeader({ children, className = '' }: { children: React.React
 
 export function CardTitle({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+    <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#8a9060' }}>
       {children}
     </span>
   )

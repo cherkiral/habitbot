@@ -3,20 +3,20 @@ interface ProgressProps {
   max?: number
   color?: string
   height?: number
-  className?: string
+  style?: React.CSSProperties
 }
 
-export function Progress({ value, max = 100, color = 'var(--accent)', height = 6, className = '' }: ProgressProps) {
+export function Progress({ value, max = 100, color = '#6a8a2a', height = 6, style }: ProgressProps) {
   const pct = Math.min(Math.max((value / max) * 100, 0), 100)
   return (
-    <div
-      className={`w-full rounded-full overflow-hidden ${className}`}
-      style={{ height, background: 'var(--border-light)' }}
-    >
-      <div
-        className="h-full rounded-full transition-all duration-500"
-        style={{ width: `${pct}%`, background: color }}
-      />
+    <div style={{ width: '100%', borderRadius: 99, overflow: 'hidden', background: '#e8e4d0', height, ...style }}>
+      <div style={{
+        width: `${pct}%`,
+        height: '100%',
+        borderRadius: 99,
+        background: color,
+        transition: 'width 0.5s ease',
+      }} />
     </div>
   )
 }

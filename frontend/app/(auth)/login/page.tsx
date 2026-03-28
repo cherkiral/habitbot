@@ -25,32 +25,54 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--bg)' }}>
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl mx-auto mb-4"
-            style={{ background: 'var(--accent)' }}>
-            🌿
-          </div>
-          <h1 className="text-xl font-semibold text-primary tracking-tight">Вход в HabitBot</h1>
-          <p className="text-sm text-muted mt-1">Трекер на пути к цели</p>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 16,
+      background: '#faf8f0',
+      fontFamily: "'DM Sans', sans-serif",
+    }}>
+      <div style={{ width: '100%', maxWidth: 360 }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{
+            width: 52, height: 52,
+            borderRadius: 14,
+            background: '#6a8a2a',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 24,
+            margin: '0 auto 16px',
+          }}>🌿</div>
+          <h1 style={{ fontSize: 22, fontWeight: 600, color: '#2a3010', letterSpacing: '-0.5px' }}>
+            Вход в HabitBot
+          </h1>
+          <p style={{ fontSize: 13, color: '#8a9060', marginTop: 4 }}>Трекер на пути к цели</p>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <div style={{
+          background: '#fff',
+          border: '1px solid #ddd8c0',
+          borderRadius: 14,
+          padding: 24,
+          boxShadow: '0 2px 8px rgba(42,48,16,.08)',
+        }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <Input label="Email" type="email" value={email}
               onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required />
             <Input label="Пароль" type="password" value={password}
               onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
-            {error && <p className="text-xs text-red-500">{error}</p>}
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            {error && <p style={{ fontSize: 12, color: '#dc2626' }}>{error}</p>}
+            <Button type="submit" style={{ width: '100%' }} disabled={isLoading}>
               {isLoading ? 'Входим...' : 'Войти'}
             </Button>
           </form>
 
-          <p className="text-center text-xs text-muted mt-4">
+          <p style={{ textAlign: 'center', fontSize: 12, color: '#8a9060', marginTop: 16 }}>
             Нет аккаунта?{' '}
-            <Link href="/register" className="text-accent hover:underline font-medium">
+            <Link href="/register" style={{ color: '#6a8a2a', fontWeight: 500 }}>
               Зарегистрироваться
             </Link>
           </p>
