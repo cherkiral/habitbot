@@ -1,7 +1,4 @@
 #!/bin/bash
-# HabitBot management script
-# Usage: hb [command]
-
 DIR=/opt/habitbot
 
 case "$1" in
@@ -12,15 +9,15 @@ case "$1" in
     cd $DIR && docker compose down
     ;;
   restart)
-    cd $DIR && docker compose restart app worker beat
+    cd $DIR && docker compose restart app worker beat frontend
     ;;
   deploy)
     echo "Pulling latest code..."
     cd $DIR && git pull
     echo "Rebuilding containers..."
-    docker compose up -d --build app worker beat
+    docker compose up -d --build
     echo "Waiting for app to start..."
-    sleep 15
+    sleep 20
     echo "Running migrations..."
     docker compose exec app alembic upgrade head
     echo "Seeding initial data..."
@@ -43,18 +40,9 @@ case "$1" in
     cd $DIR && docker compose exec app python seed.py
     ;;
   shell)
-    cd $DIR && docker compose exec app bash
+    cd $DIR && docker compose exec ${2:-app} sh
     ;;
   *)
     echo "Usage: hb [up|down|restart|deploy|logs|ps|migrate|seed|shell]"
-    echo "  hb up          - start all containers"
-    echo "  hb down        - stop all containers"
-    echo "  hb restart     - restart app/worker/beat"
-    echo "  hb deploy      - pull + rebuild + migrate + seed"
-    echo "  hb logs [svc]  - show logs (default: app)"
-    echo "  hb ps          - show container status"
-    echo "  hb migrate     - run migrations"
-    echo "  hb seed        - seed initial data"
-    echo "  hb shell       - open shell in app container"
     ;;
 esac
