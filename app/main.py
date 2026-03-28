@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import auth, users, weight, activity, food
+from app.routers import auth, users, weight, activity, food, streak
 
 logger = structlog.get_logger()
 
@@ -28,11 +28,17 @@ app.include_router(users.router, prefix="/api")
 app.include_router(weight.router, prefix="/api")
 app.include_router(activity.router, prefix="/api")
 app.include_router(food.router, prefix="/api")
+app.include_router(streak.router, prefix="/api")
 
 
 @app.on_event("startup")
 async def startup():
     logger.info("Starting HabitBot API", environment=settings.ENVIRONMENT)
+    from app.core.database import AsyncSessionLocal
+    from app.services.streak import seed_achievements
+    async with AsyncSessionLocal() as db:
+        await seed_achievements(db)
+    logger.info("Achievements seeded")
 
 
 @app.on_event("shutdown")
