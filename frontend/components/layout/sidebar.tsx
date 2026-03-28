@@ -32,7 +32,6 @@ export function Sidebar() {
 
   return (
     <aside className="w-56 h-full flex flex-col border-r border-border" style={{ background: 'var(--bg-sidebar)' }}>
-      {/* Logo */}
       <div className="px-4 py-4 border-b border-border flex items-center gap-2.5">
         <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm" style={{ background: 'var(--accent)', color: 'white' }}>
           🌿
@@ -40,15 +39,13 @@ export function Sidebar() {
         <span className="text-sm font-semibold text-primary tracking-tight">HabitBot</span>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 p-2 flex flex-col gap-0.5 overflow-y-auto">
         <p className="text-xs font-semibold uppercase tracking-wider text-hint px-2 py-2 mt-1">Главное</p>
         {nav.map(({ href, icon: Icon, label }) => {
           const active = pathname.startsWith(href)
           return (
             <Link key={href} href={href}
-              className={lex items-center gap-2.5 px-3 py-2 rounded text-sm transition-colors
-                }
+              className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm transition-colors ${active ? 'bg-active text-primary font-medium' : 'text-muted hover:bg-hover hover:text-primary'}`}
             >
               <Icon size={15} className={active ? 'text-accent' : ''} />
               {label}
@@ -61,8 +58,7 @@ export function Sidebar() {
           const active = pathname.startsWith(href)
           return (
             <Link key={href} href={href}
-              className={lex items-center gap-2.5 px-3 py-2 rounded text-sm transition-colors
-                }
+              className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm transition-colors ${active ? 'bg-active text-primary font-medium' : 'text-muted hover:bg-hover hover:text-primary'}`}
             >
               <Icon size={15} className={active ? 'text-accent' : ''} />
               {label}
@@ -71,7 +67,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* User */}
       <div className="p-3 border-t border-border">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0"

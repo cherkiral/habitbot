@@ -21,7 +21,7 @@ const sizes = {
 export function Button({ variant = 'primary', size = 'md', className = '', children, ...props }: ButtonProps) {
   return (
     <button
-      className={ont-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed   }
+      className={`font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     >
       {children}

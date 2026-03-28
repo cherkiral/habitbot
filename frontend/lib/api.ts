@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost/api',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || '/api',
   withCredentials: true,
 })
 
@@ -12,7 +12,7 @@ export const getToken = () => accessToken
 
 api.interceptors.request.use((config) => {
   if (accessToken) {
-    config.headers.Authorization = Bearer +""+${accessToken}+""
+    config.headers.Authorization = `Bearer ${accessToken}`
   }
   return config
 })
@@ -27,7 +27,7 @@ api.interceptors.response.use(
         const res = await api.post('/auth/refresh')
         const token = res.data.access_token
         setToken(token)
-        original.headers.Authorization = Bearer +""+${token}+""
+        original.headers.Authorization = `Bearer ${token}`
         return api(original)
       } catch {
         setToken(null)
