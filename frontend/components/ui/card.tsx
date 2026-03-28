@@ -7,7 +7,7 @@ interface CardProps {
 export function Card({ children, className = '', padding = 'md' }: CardProps) {
   const p = { sm: 'p-3', md: 'p-4', lg: 'p-5' }[padding]
   return (
-    <div className={g-card border border-border rounded-lg shadow-sm  }>
+    <div className={`bg-card border border-border rounded-lg shadow-sm ${p} ${className}`}>
       {children}
     </div>
   )
@@ -15,7 +15,7 @@ export function Card({ children, className = '', padding = 'md' }: CardProps) {
 
 export function CardHeader({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={lex items-center justify-between mb-3 }>
+    <div className={`flex items-center justify-between mb-3 ${className}`}>
       {children}
     </div>
   )

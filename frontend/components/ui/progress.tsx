@@ -10,12 +10,12 @@ export function Progress({ value, max = 100, color = 'var(--accent)', height = 6
   const pct = Math.min(Math.max((value / max) * 100, 0), 100)
   return (
     <div
-      className={w-full rounded-full overflow-hidden }
+      className={`w-full rounded-full overflow-hidden ${className}`}
       style={{ height, background: 'var(--border-light)' }}
     >
       <div
         className="h-full rounded-full transition-all duration-500"
-        style={{ width: ${pct}%, background: color }}
+        style={{ width: `${pct}%`, background: color }}
       />
     </div>
   )

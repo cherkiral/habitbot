@@ -15,14 +15,14 @@ const deltaColors = {
 
 export function StatCard({ label, value, unit, delta, deltaType = 'neutral', className = '' }: StatCardProps) {
   return (
-    <div className={g-card border border-border rounded-lg p-4 }>
+    <div className={`bg-card border border-border rounded-lg p-4 ${className}`}>
       <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">{label}</p>
       <p className="text-2xl font-semibold text-primary tracking-tight leading-none">
         {value}
         {unit && <span className="text-sm font-normal text-hint ml-1">{unit}</span>}
       </p>
       {delta && (
-        <p className={	ext-xs mt-1.5 }>{delta}</p>
+        <p className={`text-xs mt-1.5 ${deltaColors[deltaType]}`}>{delta}</p>
       )}
     </div>
   )
