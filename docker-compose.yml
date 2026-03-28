@@ -7,6 +7,9 @@ services:
     working_dir: /app
     volumes:
       - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      - ./seed.py:/app/seed.py
     depends_on:
       db:
         condition: service_healthy
