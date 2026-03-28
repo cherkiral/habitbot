@@ -5,13 +5,19 @@ import { Sidebar } from '@/components/layout/sidebar'
 import { useAuth } from '@/store/auth'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth()
+  const { token, _hasHydrated } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
+    // Ждём гидрации Zustand из localStorage перед проверкой токена.
+    // Без этой проверки при обновлении страницы token === null пока
+    // persist не восстановит состояние, и layout редиректит на /login.
+    if (!_hasHydrated) return
     if (!token) router.replace('/login')
-  }, [token, router])
+  }, [token, _hasHydrated, router])
 
+  // Пока гидрация не завершена — ничего не рендерим (избегаем флicker)
+  if (!_hasHydrated) return null
   if (!token) return null
 
   return (
