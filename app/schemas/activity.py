@@ -60,6 +60,13 @@ class ActivityLogResponse(BaseModel):
         from_attributes = True
 
 
+class DaySteps(BaseModel):
+    date: str       # YYYY-MM-DD
+    day: str        # пн / вт / ...
+    steps: int
+    has_data: bool  # False для будущих дней
+
+
 class ActivityStats(BaseModel):
     total_steps_today: int
     total_calories_burned_today: float
@@ -67,6 +74,7 @@ class ActivityStats(BaseModel):
     steps_progress_pct: float | None
     total_steps_week: int
     total_workouts_week: int
+    steps_by_day: list[DaySteps]   # шаги за каждый из 7 дней текущей недели
 
 
 class WaterLogCreate(BaseModel):

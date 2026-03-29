@@ -1,12 +1,14 @@
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 
-from sqlalchemy import select, desc, func
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.activity import ActivityLog, WaterLog
 from app.models.user import UserProfile
-from app.schemas.activity import ActivityLogCreate, WaterLogCreate, ActivityStats, WaterStats, MET_VALUES
+from app.schemas.activity import ActivityLogCreate, WaterLogCreate, ActivityStats, WaterStats, DaySteps, MET_VALUES
+
+DAY_NAMES = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс']
 
 
 def calc_calories(activity_type: str, duration_min: int | None, weight_kg: float, intensity: str | None) -> float | None:
@@ -66,26 +68,50 @@ async def delete_activity_log(db: AsyncSession, user_id: uuid.UUID, log_id: uuid
 
 async def get_activity_stats(db: AsyncSession, user_id: uuid.UUID) -> ActivityStats:
     now = datetime.now(timezone.utc)
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start = day_start - timedelta(days=7)
+    today = now.date()
 
-    # Шаги и калории за сегодня
+    # Начало текущей недели (понедельник)
+    week_monday = today - timedelta(days=today.weekday())
+
+    day_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    week_start_dt = datetime(week_monday.year, week_monday.month, week_monday.day, tzinfo=timezone.utc)
+
+    # Все логи за текущую неделю одним запросом
     result = await db.execute(
-        select(ActivityLog).where(ActivityLog.user_id == user_id, ActivityLog.logged_at >= day_start)
+        select(ActivityLog).where(
+            ActivityLog.user_id == user_id,
+            ActivityLog.logged_at >= week_start_dt,
+        )
     )
-    today_logs = list(result.scalars().all())
+    week_logs = list(result.scalars().all())
+
+    # Шаги и калории сегодня
+    today_logs = [l for l in week_logs if l.logged_at >= day_start]
     steps_today = sum(l.steps or 0 for l in today_logs)
     calories_today = sum(l.calories_burned or 0 for l in today_logs)
 
-    # Шаги и тренировки за неделю
-    result = await db.execute(
-        select(ActivityLog).where(ActivityLog.user_id == user_id, ActivityLog.logged_at >= week_start)
-    )
-    week_logs = list(result.scalars().all())
+    # Шаги и тренировки за всю неделю
     steps_week = sum(l.steps or 0 for l in week_logs)
     workouts_week = len(week_logs)
 
-    # Цель шагов из профиля
+    # Шаги по дням недели
+    steps_map: dict[date, int] = {}
+    for l in week_logs:
+        d = l.logged_at.date()
+        steps_map[d] = steps_map.get(d, 0) + (l.steps or 0)
+
+    steps_by_day: list[DaySteps] = []
+    for i in range(7):
+        d = week_monday + timedelta(days=i)
+        is_future = d > today
+        steps_by_day.append(DaySteps(
+            date=d.isoformat(),
+            day=DAY_NAMES[i],
+            steps=steps_map.get(d, 0),
+            has_data=not is_future,
+        ))
+
+    # Профиль для целей
     result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
     steps_goal = profile.steps_goal if profile else None
@@ -98,6 +124,7 @@ async def get_activity_stats(db: AsyncSession, user_id: uuid.UUID) -> ActivitySt
         steps_progress_pct=steps_pct,
         total_steps_week=steps_week,
         total_workouts_week=workouts_week,
+        steps_by_day=steps_by_day,
     )
 
 
@@ -135,7 +162,7 @@ async def delete_water_log(db: AsyncSession, user_id: uuid.UUID, log_id: uuid.UU
 
 async def get_water_stats(db: AsyncSession, user_id: uuid.UUID) -> WaterStats:
     now = datetime.now(timezone.utc)
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
 
     result = await db.execute(
         select(WaterLog).where(WaterLog.user_id == user_id, WaterLog.logged_at >= day_start)

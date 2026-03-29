@@ -3,29 +3,39 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Header } from '@/components/layout/header'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts'
 
 const c = { bg:'#faf8f0', card:'#ffffff', dark:'#3a4a1a', accent:'#6a8a2a', border:'#ddd8c0', muted:'#8a9060', hint:'#b0b890', primary:'#2a3010', amber:'#d97706' }
 const card = (e?: React.CSSProperties): React.CSSProperties => ({ background:c.card, border:`1px solid ${c.border}`, borderRadius:12, padding:20, ...e })
 
 const TYPES = [
-  { v:'walking',  l:'Ходьба',     e:'🚶' },
-  { v:'running',  l:'Бег',        e:'🏃' },
-  { v:'cycling',  l:'Велосипед',  e:'🚴' },
-  { v:'swimming', l:'Плавание',   e:'🏊' },
-  { v:'strength', l:'Силовая',    e:'💪' },
-  { v:'yoga',     l:'Йога',       e:'🧘' },
-  { v:'hiking',   l:'Хайкинг',    e:'🥾' },
-  { v:'other',    l:'Другое',     e:'⚡' },
+  { v:'walking',  l:'Ходьба',    e:'🚶' },
+  { v:'running',  l:'Бег',       e:'🏃' },
+  { v:'cycling',  l:'Велосипед', e:'🚴' },
+  { v:'swimming', l:'Плавание',  e:'🏊' },
+  { v:'strength', l:'Силовая',   e:'💪' },
+  { v:'yoga',     l:'Йога',      e:'🧘' },
+  { v:'hiking',   l:'Хайкинг',   e:'🥾' },
+  { v:'other',    l:'Другое',    e:'⚡' },
 ]
 
 export default function ActivityPage() {
   const qc = useQueryClient()
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ activity_type:'walking', steps:'', duration_min:'', intensity:'medium', notes:'' })
+  const [showForm, setShowForm]       = useState(false)
+  const [showGoal, setShowGoal]       = useState(false)
+  const [goalInput, setGoalInput]     = useState('')
+  const [form, setForm] = useState({
+    activity_type: 'walking', steps: '', duration_min: '', intensity: 'medium', notes: '',
+  })
 
-  const { data: stats } = useQuery({ queryKey:['activity-stats'], queryFn: () => api.get('/activity/stats').then(r => r.data) })
-  const { data: logs }  = useQuery({ queryKey:['activity-logs'],  queryFn: () => api.get('/activity/logs').then(r => r.data) })
+  const { data: stats } = useQuery({
+    queryKey: ['activity-stats'],
+    queryFn: () => api.get('/activity/stats').then(r => r.data),
+  })
+  const { data: logs } = useQuery({
+    queryKey: ['activity-logs'],
+    queryFn: () => api.get('/activity/logs').then(r => r.data),
+  })
 
   const add = useMutation({
     mutationFn: () => api.post('/activity/logs', {
@@ -36,8 +46,8 @@ export default function ActivityPage() {
       notes:         form.notes || undefined,
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey:['activity-stats'] })
-      qc.invalidateQueries({ queryKey:['activity-logs'] })
+      qc.invalidateQueries({ queryKey: ['activity-stats'] })
+      qc.invalidateQueries({ queryKey: ['activity-logs'] })
       setForm({ activity_type:'walking', steps:'', duration_min:'', intensity:'medium', notes:'' })
       setShowForm(false)
     },
@@ -46,8 +56,18 @@ export default function ActivityPage() {
   const del = useMutation({
     mutationFn: (id: string) => api.delete(`/activity/logs/${id}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey:['activity-stats'] })
-      qc.invalidateQueries({ queryKey:['activity-logs'] })
+      qc.invalidateQueries({ queryKey: ['activity-stats'] })
+      qc.invalidateQueries({ queryKey: ['activity-logs'] })
+    },
+  })
+
+  // Обновление цели шагов через PUT /users/me/profile
+  const setGoal = useMutation({
+    mutationFn: (steps_goal: number) => api.put('/users/me/profile', { steps_goal }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['activity-stats'] })
+      setGoalInput('')
+      setShowGoal(false)
     },
   })
 
@@ -55,15 +75,12 @@ export default function ActivityPage() {
     ? Math.min((stats.total_steps_today / stats.steps_goal) * 100, 100)
     : 0
 
-  const days = ['пн','вт','ср','чт','пт','сб','вс']
-  const today    = new Date().getDay()
-  const todayIdx = today === 0 ? 6 : today - 1
-  const barData  = days.map((day, i) => ({
-    day,
-    value: i <= todayIdx
-      ? (i === todayIdx ? (stats?.total_steps_today ?? 0) : Math.floor(Math.random() * 8000) + 2000)
-      : 0,
-    goal: stats?.steps_goal ?? 10000,
+  // Данные для графика берём из API (steps_by_day)
+  const barData = (stats?.steps_by_day || []).map((d: any) => ({
+    day:      d.day,
+    value:    d.steps,
+    has_data: d.has_data,
+    date:     d.date,
   }))
 
   const inp = (extra?: React.CSSProperties): React.CSSProperties => ({
@@ -71,12 +88,15 @@ export default function ActivityPage() {
     fontSize:13, color:c.primary, outline:'none', fontFamily:"'DM Sans',sans-serif", background:c.bg, ...extra,
   })
 
+  const todayStr = new Date().toISOString().slice(0, 10)
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
-      <Header title="Активность" action={{ label:'Добавить', onClick: () => setShowForm(v => !v) }} />
+      <Header title="Активность" action={{ label:'Добавить', onClick: () => { setShowForm(v => !v); setShowGoal(false) } }} />
       <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', background:c.bg }}>
         <div style={{ maxWidth:1200, margin:'0 auto', display:'flex', flexDirection:'column', gap:16 }}>
 
+          {/* Форма новой тренировки */}
           {showForm && (
             <div style={card()}>
               <p style={{ fontSize:14, fontWeight:600, color:c.primary, marginBottom:14 }}>Новая тренировка</p>
@@ -125,27 +145,34 @@ export default function ActivityPage() {
           {/* Bento */}
           <div style={{ display:'grid', gridTemplateColumns:'220px 1fr 1fr 1fr', gap:12 }}>
 
-            {/* Шаги — главный блок */}
+            {/* Шаги — главный тёмный блок */}
             <div style={{ ...card({ background:c.dark, border:`1px solid ${c.dark}`, gridRow:'span 2', display:'flex', flexDirection:'column' }) }}>
               <p style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', color:'rgba(255,255,255,0.4)', marginBottom:6 }}>Шаги сегодня</p>
               <div style={{ fontSize:40, fontWeight:700, color:'#fff', letterSpacing:'-2px', lineHeight:1 }}>
                 {(stats?.total_steps_today ?? 0).toLocaleString('ru')}
               </div>
               <p style={{ fontSize:12, color:'rgba(255,255,255,0.4)', marginTop:2 }}>
-                из {(stats?.steps_goal ?? 10000).toLocaleString('ru')}
+                из {(stats?.steps_goal ?? '—').toLocaleString?.('ru') ?? '—'}
               </p>
               <div style={{ height:5, background:'rgba(255,255,255,0.1)', borderRadius:99, overflow:'hidden', marginTop:12 }}>
                 <div style={{ width:`${stepsPct}%`, height:'100%', background:c.amber, borderRadius:99, transition:'width 0.5s' }} />
               </div>
               <div style={{ flex:1 }} />
-              <div style={{ padding:'10px 12px', background:'rgba(255,255,255,0.07)', borderRadius:8 }}>
+              <div style={{ padding:'10px 12px', background:'rgba(255,255,255,0.07)', borderRadius:8, marginBottom:8 }}>
                 <p style={{ fontSize:9, color:'rgba(255,255,255,0.35)', marginBottom:3 }}>ЗА НЕДЕЛЮ</p>
                 <p style={{ fontSize:20, fontWeight:600, color:'#fff' }}>
                   {(stats?.total_steps_week ?? 0).toLocaleString('ru')}
                 </p>
               </div>
+              {/* Кнопка смены цели */}
+              <button
+                onClick={() => { setShowGoal(v => !v); setShowForm(false) }}
+                style={{ padding:'7px 12px', background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:8, fontSize:11, color:'rgba(255,255,255,0.6)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", textAlign:'left' }}>
+                🎯 Изменить цель шагов
+              </button>
             </div>
 
+            {/* Калории */}
             <div style={card()}>
               <p style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', color:c.hint, marginBottom:8 }}>Калории сожжено</p>
               <div style={{ fontSize:28, fontWeight:600, color:c.primary, letterSpacing:'-1px', lineHeight:1 }}>
@@ -155,6 +182,7 @@ export default function ActivityPage() {
               <p style={{ fontSize:10, color:c.hint, marginTop:8 }}>Сегодня</p>
             </div>
 
+            {/* Тренировки за неделю */}
             <div style={card()}>
               <p style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', color:c.hint, marginBottom:8 }}>Тренировок за неделю</p>
               <div style={{ fontSize:28, fontWeight:600, color:c.accent, letterSpacing:'-1px', lineHeight:1 }}>
@@ -165,6 +193,7 @@ export default function ActivityPage() {
               </p>
             </div>
 
+            {/* Прогресс шагов */}
             <div style={card()}>
               <p style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', color:c.hint, marginBottom:8 }}>Прогресс шагов</p>
               <div style={{ fontSize:28, fontWeight:600, color:c.primary, letterSpacing:'-1px', lineHeight:1 }}>
@@ -173,31 +202,114 @@ export default function ActivityPage() {
               <div style={{ height:5, background:'#e8e4d0', borderRadius:99, overflow:'hidden', marginTop:8 }}>
                 <div style={{ width:`${stepsPct}%`, height:'100%', background:c.accent, borderRadius:99 }} />
               </div>
+              <p style={{ fontSize:10, color:c.hint, marginTop:6 }}>
+                {stats?.steps_goal ? `Цель: ${stats.steps_goal.toLocaleString('ru')} шагов` : 'Цель не задана'}
+              </p>
             </div>
 
-            {/* Бар-чарт шагов по дням */}
+            {/* Бар-чарт шагов по дням — реальные данные */}
             <div style={{ ...card({ gridColumn:'span 3' }) }}>
-              <p style={{ fontSize:13, fontWeight:500, color:c.primary, marginBottom:14 }}>Шаги по дням</p>
-              <ResponsiveContainer width="100%" height={140}>
-                <BarChart data={barData} margin={{ top:0, right:0, left:-20, bottom:0 }}>
-                  <XAxis dataKey="day" tick={{ fontSize:10, fill:c.hint }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize:10, fill:c.hint }} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    formatter={(v: any) => [`${v.toLocaleString('ru')} шагов`]}
-                    contentStyle={{ fontSize:11, borderRadius:8, border:`1px solid ${c.border}` }}
-                  />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    {barData.map((_d: any, i: number) => (
-                      <Cell key={i} fill={i === todayIdx ? c.accent : i < todayIdx ? '#c8e090' : '#f0ede4'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                <p style={{ fontSize:13, fontWeight:500, color:c.primary }}>Шаги по дням недели</p>
+                {stats?.steps_goal && (
+                  <span style={{ fontSize:10, color:c.hint }}>
+                    Цель: {stats.steps_goal.toLocaleString('ru')} шагов
+                  </span>
+                )}
+              </div>
+              {barData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={140}>
+                  <BarChart data={barData} margin={{ top:10, right:0, left:-20, bottom:0 }}>
+                    <XAxis dataKey="day" tick={{ fontSize:10, fill:c.hint }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize:10, fill:c.hint }} tickLine={false} axisLine={false} />
+                    <Tooltip
+                      formatter={(v: any, _name: any, props: any) => [
+                        `${Number(v).toLocaleString('ru')} шагов`,
+                        props.payload.date,
+                      ]}
+                      contentStyle={{ fontSize:11, borderRadius:8, border:`1px solid ${c.border}` }}
+                    />
+                    {stats?.steps_goal && (
+                      <ReferenceLine
+                        y={stats.steps_goal}
+                        stroke={c.accent}
+                        strokeDasharray="4 3"
+                        label={{ value:'цель', position:'right', fontSize:9, fill:c.accent }}
+                      />
+                    )}
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={48}>
+                      {barData.map((d: any, i: number) => (
+                        <Cell
+                          key={i}
+                          fill={
+                            d.date === todayStr ? c.accent       // сегодня — акцент
+                            : !d.has_data       ? '#f0ede4'      // будущие дни — серые
+                            : d.value === 0     ? '#e8e4d0'      // был день, но шагов нет
+                            : '#c8e090'                          // прошлые дни с данными
+                          }
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div style={{ height:140, display:'flex', alignItems:'center', justifyContent:'center', color:c.hint, fontSize:13 }}>
+                  Добавь первую тренировку
+                </div>
+              )}
+              {/* Легенда */}
+              <div style={{ display:'flex', gap:16, marginTop:8 }}>
+                {[
+                  { color: c.accent,  label: 'Сегодня' },
+                  { color: '#c8e090', label: 'Дни с данными' },
+                  { color: '#e8e4d0', label: 'Нет активности' },
+                  { color: '#f0ede4', label: 'Ещё не наступил' },
+                ].map(({ color, label }) => (
+                  <div key={label} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                    <div style={{ width:10, height:10, borderRadius:3, background:color, border:`1px solid ${c.border}` }} />
+                    <span style={{ fontSize:10, color:c.hint }}>{label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
           </div>
 
-          {/* История */}
+          {/* Форма изменения цели шагов */}
+          {showGoal && (
+            <div style={card()}>
+              <p style={{ fontSize:14, fontWeight:600, color:c.primary, marginBottom:6 }}>Цель шагов в день</p>
+              <p style={{ fontSize:12, color:c.muted, marginBottom:14 }}>
+                Текущая цель: <b>{stats?.steps_goal ? stats.steps_goal.toLocaleString('ru') : 'не задана'}</b> шагов
+              </p>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14 }}>
+                {[5000, 7500, 10000, 12000, 15000].map(v => (
+                  <button key={v} onClick={() => setGoalInput(String(v))} style={{
+                    padding:'6px 14px', borderRadius:8, fontSize:12, fontWeight:500,
+                    border:`1px solid ${goalInput === String(v) ? c.accent : c.border}`,
+                    background: goalInput === String(v) ? '#eef4d8' : 'transparent',
+                    color: goalInput === String(v) ? c.dark : c.muted,
+                    cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                  }}>{v.toLocaleString('ru')}</button>
+                ))}
+              </div>
+              <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                <input
+                  type="number" step="500" placeholder="Или введи своё"
+                  value={goalInput} onChange={e => setGoalInput(e.target.value)}
+                  style={{ ...inp(), flex:1 }}
+                />
+                <button
+                  onClick={() => goalInput && setGoal.mutate(parseInt(goalInput))}
+                  disabled={!goalInput || setGoal.isPending}
+                  style={{ padding:'10px 20px', background:c.accent, color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", whiteSpace:'nowrap' }}>
+                  {setGoal.isPending ? 'Сохраняем...' : 'Сохранить'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* История тренировок */}
           <div style={card()}>
             <p style={{ fontSize:13, fontWeight:600, color:c.primary, marginBottom:14 }}>История тренировок</p>
             {!logs?.length && (
